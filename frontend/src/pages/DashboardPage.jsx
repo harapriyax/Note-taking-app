@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import {
   ArrowRight, Bell, CheckCircle2, CheckSquare, ChevronDown, ChevronRight, Clock3,
-  FileText, Folder, Grid2X2, Home, LayoutGrid, List, LogOut, MoreHorizontal,
-  PanelLeft, Plus, RotateCcw, Search, Sparkles, Star, Tag, Trash2, X
+  Cloud, CloudOff, FileText, Folder, Grid2X2, Home, LayoutGrid, List, LogOut, MoreHorizontal,
+  PanelLeft, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Tag, Trash2, X
 } from 'lucide-react'
+import { api, apiGet, apiPost, apiPut, apiDelete } from '../lib/api'
 import Button from '../components/ui/Button'
 import Logo from '../components/BrandLogo'
 import CalendarWidget from '../components/CalendarWidget'
@@ -102,8 +103,12 @@ function plainText(value = '') {
 }
 
 export default function DashboardPage({ session, onLogout }) {
-  // Load notes from localStorage or seed
+  const token = session?.token
+  const isCloud = Boolean(token && !token.startsWith('demo-') && !token.startsWith('google-'))
+
+  // For cloud users: start empty (will load from API). For local: load from localStorage/seed.
   const [notes, setNotes] = useState(() => {
+    if (isCloud) return [] // Will be populated by cloud fetch
     try {
       const saved = localStorage.getItem('noteflow_notes')
       if (saved) {
@@ -116,8 +121,8 @@ export default function DashboardPage({ session, onLogout }) {
     return SEED_NOTES
   })
 
-  // Load categories from localStorage or default
-  const [categories, setCategories] = useState(() => {
+  // Categories: merge defaults with any categories found in cloud notes
+  const [customCategories, setCustomCategories] = useState(() => {
     try {
       const saved = localStorage.getItem('noteflow_categories')
       if (saved) {
@@ -129,6 +134,25 @@ export default function DashboardPage({ session, onLogout }) {
     }
     return DEFAULT_CATEGORIES
   })
+
+  // Build categories from defaults + any new ones from cloud notes
+  const categories = useMemo(() => {
+    const known = new Set(customCategories.map((c) => c.name.toLowerCase()))
+    const fromNotes = []
+    const colors = ['#2563eb', '#dc2626', '#059669', '#d97706', '#7c3aed', '#0891b2', '#be185d']
+    notes.forEach((n) => {
+      if (n.category && !known.has(n.category.toLowerCase())) {
+        known.add(n.category.toLowerCase())
+        fromNotes.push({
+          id: `cat-auto-${n.category}`,
+          name: n.category,
+          color: colors[fromNotes.length % colors.length],
+          isCustom: true,
+        })
+      }
+    })
+    return [...customCategories, ...fromNotes]
+  }, [customCategories, notes])
 
   // Load tasks from localStorage or default
   const [tasks, setTasks] = useState(() => {
@@ -145,40 +169,152 @@ export default function DashboardPage({ session, onLogout }) {
   })
 
   const [query, setQuery] = useState('')
-  const [activeNav, setActiveNav] = useState('All Notes') // 'All Notes' | 'Favorites' | 'Recent' | 'Trash'
+  const [activeNav, setActiveNav] = useState('All Notes')
   const [selectedCategory, setSelectedCategory] = useState('All')
-  const [viewMode, setViewMode] = useState('grid') // 'grid' | 'list'
+  const [viewMode, setViewMode] = useState('grid')
   const [editor, setEditor] = useState(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [taskText, setTaskText] = useState('')
   const [taskPriority, setTaskPriority] = useState('Medium')
-  const [taskFilter, setTaskFilter] = useState('all') // 'all' | 'active' | 'done'
+  const [taskFilter, setTaskFilter] = useState('all')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [syncStatus, setSyncStatus] = useState(isCloud ? 'syncing' : 'local')
+  const [isLoading, setIsLoading] = useState(isCloud)
   const [toast, setToast] = useState(null)
 
-  const user = session?.user || { fullName: 'Harapriya' }
-  const firstName = user.fullName?.split(' ')[0] || 'Harapriya'
+  const user = session?.user || { fullName: 'User' }
+  const firstName = user.fullName?.split(' ')[0] || 'User'
 
-  // Persist notes
+  // Cloud Notes Fetch from AWS DynamoDB — runs once on mount for cloud users
   useEffect(() => {
+    if (!isCloud) return
+
+    let cancelled = false
+
+    async function fetchCloudNotes() {
+      setSyncStatus('syncing')
+      setIsLoading(true)
+      try {
+        const res = await apiGet('/notes?trashed=all', token)
+        if (cancelled) return
+
+        if (res?.notes && Array.isArray(res.notes)) {
+          const cloudNotes = res.notes.map((n) => ({
+            id: n.noteId || n.id,
+            title: n.title || 'Untitled',
+            content: n.content || '',
+            category: n.category || 'General',
+            tags: Array.isArray(n.tags) ? n.tags : [],
+            color: n.color || '#e07a4a',
+            isFavorite: Boolean(n.isFavorite),
+            isTrashed: Boolean(n.isTrashed),
+            createdAt: n.createdAt,
+            updatedAt: n.updatedAt,
+          }))
+          setNotes(cloudNotes)
+          // Clear old localStorage seed data
+          localStorage.removeItem('noteflow_notes')
+          setSyncStatus('synced')
+        }
+      } catch (err) {
+        console.error('Failed to load notes from AWS:', err)
+        // Fallback: try localStorage
+        try {
+          const saved = localStorage.getItem('noteflow_notes')
+          if (saved) {
+            const parsed = JSON.parse(saved)
+            if (Array.isArray(parsed) && parsed.length > 0 && !cancelled) {
+              setNotes(parsed)
+            }
+          }
+        } catch {}
+        if (!cancelled) setSyncStatus('error')
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    fetchCloudNotes()
+    return () => { cancelled = true }
+  }, [token, isCloud])
+
+  // Cloud fetch for Tasks from AWS DynamoDB
+  useEffect(() => {
+    if (!isCloud) return
+    let cancelled = false
+    async function fetchCloudTasks() {
+      try {
+        const res = await apiGet('/tasks', token)
+        if (cancelled) return
+        if (res?.tasks && Array.isArray(res.tasks)) {
+          const cloudTasks = res.tasks.map((t) => ({
+            id: t.taskId || t.id,
+            text: t.text || '',
+            priority: t.priority || 'Medium',
+            done: Boolean(t.done),
+            createdAt: t.createdAt,
+          }))
+          setTasks(cloudTasks)
+        }
+      } catch (err) {
+        console.warn('Failed to load tasks from AWS:', err)
+      }
+    }
+    fetchCloudTasks()
+    return () => { cancelled = true }
+  }, [token, isCloud])
+
+  // Cloud fetch for Categories from AWS DynamoDB
+  useEffect(() => {
+    if (!isCloud) return
+    let cancelled = false
+    async function fetchCloudCategories() {
+      try {
+        const res = await apiGet('/categories', token)
+        if (cancelled) return
+        if (res?.categories && Array.isArray(res.categories) && res.categories.length > 0) {
+          const cloudCats = res.categories.map((c) => ({
+            id: c.categoryId || c.id,
+            name: c.name,
+            color: c.color || '#e07a4a',
+            isCustom: true,
+          }))
+          // Merge: keep defaults, add cloud custom ones
+          setCustomCategories((prev) => {
+            const defaultNames = new Set(DEFAULT_CATEGORIES.map((d) => d.name.toLowerCase()))
+            const customs = cloudCats.filter((c) => !defaultNames.has(c.name.toLowerCase()))
+            return [...DEFAULT_CATEGORIES, ...customs]
+          })
+        }
+      } catch (err) {
+        console.warn('Failed to load categories from AWS:', err)
+      }
+    }
+    fetchCloudCategories()
+    return () => { cancelled = true }
+  }, [token, isCloud])
+
+  // Persist notes locally as fallback cache (skip during initial cloud load)
+  useEffect(() => {
+    if (isCloud && notes.length === 0) return
     try {
       localStorage.setItem('noteflow_notes', JSON.stringify(notes))
     } catch (e) {
       console.error('Could not save notes to storage', e)
     }
-  }, [notes])
+  }, [notes, isCloud])
 
-  // Persist categories
+  // Persist custom categories locally
   useEffect(() => {
     try {
-      localStorage.setItem('noteflow_categories', JSON.stringify(categories))
+      localStorage.setItem('noteflow_categories', JSON.stringify(customCategories))
     } catch (e) {
       console.error('Could not save categories to storage', e)
     }
-  }, [categories])
+  }, [customCategories])
 
-  // Persist tasks
+  // Persist tasks locally
   useEffect(() => {
     try {
       localStorage.setItem('noteflow_tasks', JSON.stringify(tasks))
@@ -200,42 +336,108 @@ export default function DashboardPage({ session, onLogout }) {
     return found ? found.color : '#e07a4a'
   }
 
-  // Category Actions
-  const handleAddCategory = (newCat) => {
-    setCategories((prev) => [...prev, newCat])
-    showToast(`Category "${newCat.name}" added`)
+  // Category Actions (synced with AWS DynamoDB)
+  const handleAddCategory = async (newCat) => {
+    // Optimistic UI
+    setCustomCategories((prev) => [...prev, newCat])
     setCategoryModalOpen(false)
+    showToast(`Category "${newCat.name}" added`)
+
+    if (isCloud) {
+      try {
+        const res = await apiPost('/categories', token, { name: newCat.name, color: newCat.color })
+        if (res?.category) {
+          // Replace optimistic entry with real cloud id
+          setCustomCategories((prev) =>
+            prev.map((c) => c.id === newCat.id ? { ...c, id: res.category.categoryId } : c)
+          )
+        }
+      } catch (err) {
+        console.warn('Failed to sync category to cloud:', err)
+      }
+    }
   }
 
-  const handleDeleteCategory = (catIdOrName) => {
-    setCategories((prev) => prev.filter((c) => c.id !== catIdOrName && c.name !== catIdOrName))
+  const handleDeleteCategory = async (catIdOrName) => {
+    const cat = categories.find((c) => c.id === catIdOrName || c.name === catIdOrName)
+    setCustomCategories((prev) => prev.filter((c) => c.id !== catIdOrName && c.name !== catIdOrName))
     if (selectedCategory === catIdOrName) setSelectedCategory('All')
     showToast('Category deleted')
+
+    if (isCloud && cat?.id) {
+      try {
+        await apiDelete(`/categories/${cat.id}`, token)
+      } catch (err) {
+        console.warn('Failed to delete category from cloud:', err)
+      }
+    }
   }
 
-  // Save / Update note (Serverless)
-  const handleSaveNote = (draft) => {
-    const isEdit = Boolean(draft.id)
+  // Save / Update note (Sync with AWS DynamoDB)
+  const handleSaveNote = async (draft) => {
+    const isEdit = Boolean(draft.id && !String(draft.id).startsWith('temp-'))
     const now = new Date().toISOString()
+    const tempId = draft.id || `temp-${Date.now()}`
 
     const nextNote = {
       ...draft,
-      id: draft.id || `note-${Date.now()}`,
+      id: tempId,
       updatedAt: now,
       createdAt: draft.createdAt || now,
       isFavorite: Boolean(draft.isFavorite),
       isTrashed: false,
     }
 
+    // Optimistic UI update
     setNotes((prev) =>
-      isEdit ? prev.map((n) => (n.id === nextNote.id ? nextNote : n)) : [nextNote, ...prev]
+      isEdit ? prev.map((n) => (n.id === draft.id ? nextNote : n)) : [nextNote, ...prev]
     )
     setEditor(null)
-    showToast(isEdit ? 'Note updated successfully' : 'New note created')
+
+    if (isCloud) {
+      setSyncStatus('syncing')
+      try {
+        if (isEdit) {
+          const res = await apiPut(`/notes/${draft.id}`, token, {
+            title: draft.title,
+            content: draft.content,
+            category: draft.category,
+            tags: draft.tags,
+            color: draft.color,
+            isFavorite: draft.isFavorite,
+            isTrashed: draft.isTrashed,
+          })
+          if (res?.note) {
+            const saved = { ...res.note, id: res.note.noteId }
+            setNotes((prev) => prev.map((n) => (n.id === draft.id ? saved : n)))
+          }
+        } else {
+          const res = await apiPost('/notes', token, {
+            title: draft.title || 'Untitled Note',
+            content: draft.content || '',
+            category: draft.category || (categories[0]?.name || 'Work'),
+            tags: draft.tags || [],
+            color: draft.color || '#e07a4a',
+          })
+          if (res?.note) {
+            const saved = { ...res.note, id: res.note.noteId }
+            setNotes((prev) => prev.map((n) => (n.id === tempId ? saved : n)))
+          }
+        }
+        setSyncStatus('synced')
+        showToast(isEdit ? 'Note updated & synced to AWS' : 'Note created & synced to AWS')
+      } catch (err) {
+        console.error('Cloud note sync failed:', err)
+        setSyncStatus('error')
+        showToast('Saved locally (cloud sync offline)')
+      }
+    } else {
+      showToast(isEdit ? 'Note updated' : 'New note created')
+    }
   }
 
-  // Toggle favorite
-  const handleToggleFavorite = (e, note) => {
+  // Toggle favorite (Sync with AWS DynamoDB)
+  const handleToggleFavorite = async (e, note) => {
     e.stopPropagation()
     const updated = !note.isFavorite
     setNotes((prev) =>
@@ -244,10 +446,19 @@ export default function DashboardPage({ session, onLogout }) {
       )
     )
     showToast(updated ? 'Added to favorites' : 'Removed from favorites')
+
+    if (isCloud && note.id && !String(note.id).startsWith('temp-')) {
+      try {
+        await apiPut(`/notes/${note.id}/favorite`, token, {})
+        setSyncStatus('synced')
+      } catch (err) {
+        console.warn('Failed to sync favorite status to cloud:', err)
+      }
+    }
   }
 
-  // Move to trash
-  const handleTrashNote = (note) => {
+  // Move to trash (Sync with AWS DynamoDB)
+  const handleTrashNote = async (note) => {
     setNotes((prev) =>
       prev.map((n) =>
         n.id === note.id ? { ...n, isTrashed: true, updatedAt: new Date().toISOString() } : n
@@ -255,10 +466,19 @@ export default function DashboardPage({ session, onLogout }) {
     )
     if (editor?.id === note.id) setEditor(null)
     showToast('Note moved to trash')
+
+    if (isCloud && note.id && !String(note.id).startsWith('temp-')) {
+      try {
+        await apiPut(`/notes/${note.id}/trash`, token, {})
+        setSyncStatus('synced')
+      } catch (err) {
+        console.warn('Failed to sync trash status to cloud:', err)
+      }
+    }
   }
 
-  // Restore from trash
-  const handleRestoreNote = (e, note) => {
+  // Restore from trash (Sync with AWS DynamoDB)
+  const handleRestoreNote = async (e, note) => {
     e.stopPropagation()
     setNotes((prev) =>
       prev.map((n) =>
@@ -266,29 +486,62 @@ export default function DashboardPage({ session, onLogout }) {
       )
     )
     showToast('Note restored from trash')
+
+    if (isCloud && note.id && !String(note.id).startsWith('temp-')) {
+      try {
+        await apiPut(`/notes/${note.id}/restore`, token, {})
+        setSyncStatus('synced')
+      } catch (err) {
+        console.warn('Failed to sync restore status to cloud:', err)
+      }
+    }
   }
 
-  // Delete forever
-  const handleDeleteForever = (e, note) => {
+  // Delete forever (Sync with AWS DynamoDB)
+  const handleDeleteForever = async (e, note) => {
     e.stopPropagation()
     if (!window.confirm('Delete this note permanently? This cannot be undone.')) return
     setNotes((prev) => prev.filter((n) => n.id !== note.id))
     showToast('Note permanently deleted')
+
+    if (isCloud && note.id && !String(note.id).startsWith('temp-')) {
+      try {
+        await apiDelete(`/notes/${note.id}`, token)
+        setSyncStatus('synced')
+      } catch (err) {
+        console.warn('Failed to delete note from cloud:', err)
+      }
+    }
   }
 
-  // Empty trash
-  const handleEmptyTrash = () => {
+  // Empty trash (Sync with AWS DynamoDB)
+  const handleEmptyTrash = async () => {
     if (!window.confirm('Empty all trashed notes?')) return
+    const trashedNotes = notes.filter((n) => n.isTrashed)
     setNotes((prev) => prev.filter((n) => !n.isTrashed))
     showToast('Trash emptied')
+
+    if (isCloud) {
+      for (const note of trashedNotes) {
+        if (note.id && !String(note.id).startsWith('temp-')) {
+          try {
+            await apiDelete(`/notes/${note.id}`, token)
+          } catch (err) {
+            console.warn('Failed to delete trashed note from cloud:', err)
+          }
+        }
+      }
+      setSyncStatus('synced')
+    }
   }
 
-  // Task Actions
-  const handleAddTask = (e) => {
+  // Task Actions (synced with AWS DynamoDB)
+  const handleAddTask = async (e) => {
     if (e) e.preventDefault()
     if (!taskText.trim()) return
+    const tempId = `temp-${Date.now()}`
     const newTask = {
-      id: Date.now(),
+      id: tempId,
       text: taskText.trim(),
       priority: taskPriority,
       done: false,
@@ -296,27 +549,79 @@ export default function DashboardPage({ session, onLogout }) {
     }
     setTasks((prev) => [newTask, ...prev])
     setTaskText('')
-    showToast('Task added to Today')
-  }
-
-  const handleAddTaskFromModal = (newTask) => {
-    setTasks((prev) => [newTask, ...prev])
     showToast('Task added')
+
+    if (isCloud) {
+      try {
+        const res = await apiPost('/tasks', token, { text: newTask.text, priority: newTask.priority })
+        if (res?.task) {
+          setTasks((prev) => prev.map((t) => t.id === tempId ? { ...t, id: res.task.taskId } : t))
+        }
+      } catch (err) {
+        console.warn('Failed to sync task to cloud:', err)
+      }
+    }
   }
 
-  const handleToggleTask = (id) => {
+  const handleAddTaskFromModal = async (newTask) => {
+    const tempId = newTask.id || `temp-${Date.now()}`
+    setTasks((prev) => [{ ...newTask, id: tempId }, ...prev])
+    showToast('Task added')
+
+    if (isCloud) {
+      try {
+        const res = await apiPost('/tasks', token, { text: newTask.text, priority: newTask.priority })
+        if (res?.task) {
+          setTasks((prev) => prev.map((t) => t.id === tempId ? { ...t, id: res.task.taskId } : t))
+        }
+      } catch (err) {
+        console.warn('Failed to sync task to cloud:', err)
+      }
+    }
+  }
+
+  const handleToggleTask = async (id) => {
     setTasks((prev) =>
       prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
     )
+
+    if (isCloud && id && !String(id).startsWith('temp-')) {
+      try {
+        await apiPut(`/tasks/${id}/toggle`, token, {})
+      } catch (err) {
+        console.warn('Failed to sync task toggle to cloud:', err)
+      }
+    }
   }
 
-  const handleDeleteTask = (id) => {
+  const handleDeleteTask = async (id) => {
     setTasks((prev) => prev.filter((t) => t.id !== id))
+
+    if (isCloud && id && !String(id).startsWith('temp-')) {
+      try {
+        await apiDelete(`/tasks/${id}`, token)
+      } catch (err) {
+        console.warn('Failed to delete task from cloud:', err)
+      }
+    }
   }
 
-  const handleClearCompleted = () => {
+  const handleClearCompleted = async () => {
+    const doneTasks = tasks.filter((t) => t.done)
     setTasks((prev) => prev.filter((t) => !t.done))
     showToast('Completed tasks cleared')
+
+    if (isCloud) {
+      for (const task of doneTasks) {
+        if (task.id && !String(task.id).startsWith('temp-')) {
+          try {
+            await apiDelete(`/tasks/${task.id}`, token)
+          } catch (err) {
+            console.warn('Failed to delete completed task from cloud:', err)
+          }
+        }
+      }
+    }
   }
 
   // Filter notes based on active navigation & category & query
@@ -484,6 +789,25 @@ export default function DashboardPage({ session, onLogout }) {
           </div>
 
           <div className="top-actions">
+            {isCloud ? (
+              syncStatus === 'syncing' ? (
+                <span className="cloud-sync-pill syncing" title="Syncing notes with AWS DynamoDB">
+                  <RefreshCw size={13} className="spin" /> Syncing...
+                </span>
+              ) : syncStatus === 'synced' ? (
+                <span className="cloud-sync-pill synced" title="All notes safely saved in AWS DynamoDB">
+                  <Cloud size={14} /> Synced to AWS
+                </span>
+              ) : (
+                <span className="cloud-sync-pill error" title="AWS API temporarily unreachable. Notes saved locally.">
+                  <CloudOff size={14} /> Cloud Offline
+                </span>
+              )
+            ) : (
+              <span className="cloud-sync-pill local" title="Sign in with your email to enable automatic AWS cloud sync">
+                <CloudOff size={14} /> Local Mode
+              </span>
+            )}
             <button
               className="new-task-btn"
               onClick={() => setTaskModalOpen(true)}

@@ -1720,3 +1720,45 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Cloud Sync Status Indicator Pill */
+.cloud-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+.cloud-sync-pill.synced {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid #A7F3D0;
+  box-shadow: 0 1px 3px rgba(4, 120, 87, 0.08);
+}
+.cloud-sync-pill.syncing {
+  background: #F5F3FF;
+  color: #6D28D9;
+  border: 1px solid #DDD6FE;
+  box-shadow: 0 1px 3px rgba(109, 40, 217, 0.08);
+}
+.cloud-sync-pill.error {
+  background: #FEF2F2;
+  color: #B91C1C;
+  border: 1px solid #FECACA;
+}
+.cloud-sync-pill.local {
+  background: #F8FAFC;
+  color: #64748B;
+  border: 1px solid #E2E8F0;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

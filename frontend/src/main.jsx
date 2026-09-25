@@ -18,6 +18,25 @@ function getInitialView() {
   return 'landing'
 }
 
+/** Parse JWT payload without a library */
+function parseJwt(token) {
+  try {
+    const base64 = token.split('.')[1]
+    const json = atob(base64.replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
+
+/** Check if a JWT token is still valid (not expired) */
+function isTokenValid(token) {
+  if (!token || token.startsWith('demo-token') || token.startsWith('google-token')) return true
+  const payload = parseJwt(token)
+  if (!payload || !payload.exp) return true // no expiry = assume valid
+  return Date.now() < payload.exp * 1000
+}
+
 function App() {
   const [view, setView] = useState(getInitialView)
   const [navKey, setNavKey] = useState(0)
@@ -26,24 +45,14 @@ function App() {
       const saved = localStorage.getItem('noteflow_session')
       if (saved) {
         const parsed = JSON.parse(saved)
-        if (parsed?.user && parsed.user.fullName !== 'Harapriya') {
-          parsed.user.fullName = 'Harapriya'
-          parsed.user.email = 'harapriya@example.com'
-          localStorage.setItem('noteflow_session', JSON.stringify(parsed))
+        // Validate token is not expired
+        if (parsed?.token && !isTokenValid(parsed.token)) {
+          localStorage.removeItem('noteflow_session')
+          return null
         }
         return parsed
       }
     } catch {}
-    if (typeof window !== 'undefined' && window.location.pathname.toLowerCase() === '/dashboard') {
-      const defaultUser = {
-        token: 'demo-token',
-        user: { id: 'user-harapriya', fullName: 'Harapriya', email: 'harapriya@example.com' },
-      }
-      try {
-        localStorage.setItem('noteflow_session', JSON.stringify(defaultUser))
-      } catch {}
-      return defaultUser
-    }
     return null
   })
 
@@ -63,6 +72,13 @@ function App() {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch {}
   }
+
+  // If user lands on /dashboard but has no valid session, redirect to login
+  useEffect(() => {
+    if (view === 'dashboard' && !session) {
+      navigate('login')
+    }
+  }, [view, session])
 
   // Listen for browser back/forward
   useEffect(() => {
@@ -86,8 +102,14 @@ function App() {
     setSession(null)
     try {
       localStorage.removeItem('noteflow_session')
+      localStorage.removeItem('noteflow_notes')
+      localStorage.removeItem('noteflow_tasks')
+      localStorage.removeItem('noteflow_categories')
     } catch {}
-    navigate('landing')
+    setView('landing')
+    setNavKey((k) => k + 1)
+    window.history.pushState(null, '', '/')
+    window.scrollTo({ top: 0 })
   }
 
   return (
@@ -107,14 +129,9 @@ function App() {
               else window.history.replaceState(null, '', '/login')
             }}
           />
-        ) : view === 'dashboard' ? (
+        ) : view === 'dashboard' && session ? (
           <DashboardPage
-            session={
-              session || {
-                token: 'demo-token',
-                user: { id: 'user-harapriya', fullName: 'Harapriya', email: 'harapriya@example.com' },
-              }
-            }
+            session={session}
             onLogout={handleLogout}
           />
         ) : (

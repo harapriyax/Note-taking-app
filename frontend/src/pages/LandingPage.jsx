@@ -366,6 +366,7 @@ function Footer() {
       </div>
       <div className="footer-bottom">
         <span>© 2026 NoteFlow. All rights reserved.</span>
+        <span style={{ opacity: 0.45, fontSize: '11px', letterSpacing: '0.5px' }}>Designed & built by Harapriya</span>
         <div><a href="#privacy">Privacy</a><a href="#terms">Terms</a><a href="#cookies">Cookies</a></div>
       </div>
     </footer>

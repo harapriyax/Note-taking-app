@@ -1,0 +1,285 @@
+service: noteflow-api
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ap-south-1
+  stage: ${opt:stage, 'live'}
+  memorySize: 256
+  timeout: 30
+  environment:
+    USERS_TABLE: ${self:service}-users-${self:provider.stage}
+    NOTES_TABLE: ${self:service}-notes-${self:provider.stage}
+    TASKS_TABLE: ${self:service}-tasks-${self:provider.stage}
+    CATEGORIES_TABLE: ${self:service}-categories-${self:provider.stage}
+    JWT_SECRET: ${env:JWT_SECRET, 'noteflow-jwt-secret-change-me'}
+  httpApi:
+    cors:
+      allowedOrigins:
+        - '*'
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource:
+            - Fn::GetAtt: [UsersTable, Arn]
+            - Fn::Join: ['/', [Fn::GetAtt: [UsersTable, Arn], 'index', '*']]
+            - Fn::GetAtt: [NotesTable, Arn]
+            - Fn::Join: ['/', [Fn::GetAtt: [NotesTable, Arn], 'index', '*']]
+            - Fn::GetAtt: [TasksTable, Arn]
+            - Fn::GetAtt: [CategoriesTable, Arn]
+
+functions:
+  # ──── Auth ────
+  authSignup:
+    handler: src/handlers/auth.signup
+    events:
+      - httpApi:
+          path: /api/auth/signup
+          method: post
+
+  authLogin:
+    handler: src/handlers/auth.login
+    events:
+      - httpApi:
+          path: /api/auth/login
+          method: post
+
+  authMe:
+    handler: src/handlers/auth.getMe
+    events:
+      - httpApi:
+          path: /api/auth/me
+          method: get
+
+  authProfile:
+    handler: src/handlers/auth.updateProfile
+    events:
+      - httpApi:
+          path: /api/auth/profile
+          method: put
+
+  # ──── Notes ────
+  notesList:
+    handler: src/handlers/notes.list
+    events:
+      - httpApi:
+          path: /api/notes
+          method: get
+
+  notesStats:
+    handler: src/handlers/notes.stats
+    events:
+      - httpApi:
+          path: /api/notes/stats
+          method: get
+
+  notesGetById:
+    handler: src/handlers/notes.getById
+    events:
+      - httpApi:
+          path: /api/notes/{id}
+          method: get
+
+  notesCreate:
+    handler: src/handlers/notes.create
+    events:
+      - httpApi:
+          path: /api/notes
+          method: post
+
+  notesUpdate:
+    handler: src/handlers/notes.update
+    events:
+      - httpApi:
+          path: /api/notes/{id}
+          method: put
+
+  notesToggleFavorite:
+    handler: src/handlers/notes.toggleFavorite
+    events:
+      - httpApi:
+          path: /api/notes/{id}/favorite
+          method: put
+
+  notesTrash:
+    handler: src/handlers/notes.trash
+    events:
+      - httpApi:
+          path: /api/notes/{id}/trash
+          method: put
+
+  notesRestore:
+    handler: src/handlers/notes.restore
+    events:
+      - httpApi:
+          path: /api/notes/{id}/restore
+          method: put
+
+  notesDelete:
+    handler: src/handlers/notes.remove
+    events:
+      - httpApi:
+          path: /api/notes/{id}
+          method: delete
+
+  # ──── Tasks ────
+  tasksList:
+    handler: src/handlers/tasks.list
+    events:
+      - httpApi:
+          path: /api/tasks
+          method: get
+
+  tasksCreate:
+    handler: src/handlers/tasks.create
+    events:
+      - httpApi:
+          path: /api/tasks
+          method: post
+
+  tasksUpdate:
+    handler: src/handlers/tasks.update
+    events:
+      - httpApi:
+          path: /api/tasks/{id}
+          method: put
+
+  tasksToggle:
+    handler: src/handlers/tasks.toggle
+    events:
+      - httpApi:
+          path: /api/tasks/{id}/toggle
+          method: put
+
+  tasksDelete:
+    handler: src/handlers/tasks.remove
+    events:
+      - httpApi:
+          path: /api/tasks/{id}
+          method: delete
+
+  # ──── Categories ────
+  categoriesList:
+    handler: src/handlers/categories.list
+    events:
+      - httpApi:
+          path: /api/categories
+          method: get
+
+  categoriesCreate:
+    handler: src/handlers/categories.create
+    events:
+      - httpApi:
+          path: /api/categories
+          method: post
+
+  categoriesDelete:
+    handler: src/handlers/categories.remove
+    events:
+      - httpApi:
+          path: /api/categories/{id}
+          method: delete
+
+  # ──── Health ────
+  health:
+    handler: src/handlers/health.check
+    events:
+      - httpApi:
+          path: /api/health
+          method: get
+
+resources:
+  Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.USERS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: EmailIndex
+            KeySchema:
+              - AttributeName: email
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+    NotesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.NOTES_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: noteId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: noteId
+            KeyType: RANGE
+
+    TasksTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.TASKS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: taskId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: taskId
+            KeyType: RANGE
+
+    CategoriesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.CATEGORIES_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: categoryId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: categoryId
+            KeyType: RANGE
+
+  Outputs:
+    ApiUrl:
+      Description: URL of the API Gateway
+      Value:
+        Fn::GetAtt: [HttpApi, ApiEndpoint]
