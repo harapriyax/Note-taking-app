@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import {
   ArrowRight, Bell, CheckCircle2, CheckSquare, ChevronDown, ChevronRight, Clock3,
-  Cloud, CloudOff, FileText, Folder, Grid2X2, Home, LayoutGrid, List, LogOut, MoreHorizontal,
+  Cloud, CloudOff, FileText, Folder, Grid2X2, Home, LayoutGrid, List, LogOut, Menu, MoreHorizontal,
   PanelLeft, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Tag, Trash2, X
 } from 'lucide-react'
 import { api, apiGet, apiPost, apiPut, apiDelete } from '../lib/api'
@@ -179,6 +179,7 @@ export default function DashboardPage({ session, onLogout }) {
   const [taskPriority, setTaskPriority] = useState('Medium')
   const [taskFilter, setTaskFilter] = useState('all')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const [syncStatus, setSyncStatus] = useState(isCloud ? 'syncing' : 'local')
   const [isLoading, setIsLoading] = useState(isCloud)
   const [toast, setToast] = useState(null)
@@ -681,17 +682,35 @@ export default function DashboardPage({ session, onLogout }) {
 
   return (
     <div className={`dashboard-shell ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-      {/* LEFT SIDEBAR */}
-      <aside className="dashboard-sidebar">
+      {/* MOBILE BACKDROP OVERLAY */}
+      {mobileDrawerOpen && (
+        <div
+          className="dash-mobile-backdrop"
+          onClick={() => setMobileDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* LEFT SIDEBAR (Desktop sticky + Mobile slide-over Drawer) */}
+      <aside className={`dashboard-sidebar ${mobileDrawerOpen ? 'mobile-drawer-open' : ''}`}>
         <div className="dash-brand">
           <Logo />
+          {/* Desktop collapse toggle */}
           <button
-            className="sidebar-collapse"
+            className="sidebar-collapse desktop-only"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label="Toggle sidebar"
             title="Toggle sidebar"
           >
             <PanelLeft size={16} />
+          </button>
+          {/* Mobile drawer close button */}
+          <button
+            className="mobile-drawer-close mobile-only"
+            onClick={() => setMobileDrawerOpen(false)}
+            aria-label="Close menu"
+          >
+            <X size={18} />
           </button>
         </div>
 
@@ -704,6 +723,7 @@ export default function DashboardPage({ session, onLogout }) {
               onClick={() => {
                 setActiveNav(id)
                 setSelectedCategory('All')
+                setMobileDrawerOpen(false)
               }}
             >
               <Icon size={17} />
@@ -721,7 +741,10 @@ export default function DashboardPage({ session, onLogout }) {
             <span>Categories</span>
             <button
               type="button"
-              onClick={() => setCategoryModalOpen(true)}
+              onClick={() => {
+                setMobileDrawerOpen(false)
+                setCategoryModalOpen(true)
+              }}
               title="Add new category"
             >
               <Plus size={15} />
@@ -736,6 +759,7 @@ export default function DashboardPage({ session, onLogout }) {
                 onClick={() => {
                   setSelectedCategory(selectedCategory === cat.name ? 'All' : cat.name)
                   if (activeNav === 'Trash') setActiveNav('All Notes')
+                  setMobileDrawerOpen(false)
                 }}
               >
                 <span style={{ backgroundColor: cat.color }} />
@@ -747,7 +771,10 @@ export default function DashboardPage({ session, onLogout }) {
           <button
             type="button"
             className="add-cat-sidebar-btn"
-            onClick={() => setCategoryModalOpen(true)}
+            onClick={() => {
+              setMobileDrawerOpen(false)
+              setCategoryModalOpen(true)
+            }}
           >
             <Plus size={14} /> Add Category
           </button>
@@ -772,51 +799,66 @@ export default function DashboardPage({ session, onLogout }) {
       <section className="dashboard-content">
         {/* Top Header / Search */}
         <header className="dash-topbar">
-          <div className="dash-search">
-            <Search size={16} />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search notes, content, tags, or categories..."
-            />
-            {query ? (
-              <button className="clear-search" onClick={() => setQuery('')} aria-label="Clear search">
-                <X size={14} />
-              </button>
-            ) : (
-              <kbd>⌘ K</kbd>
-            )}
+          <div className="dash-topbar-left">
+            <button
+              type="button"
+              className="dash-mobile-hamburger mobile-only"
+              onClick={() => setMobileDrawerOpen(true)}
+              aria-label="Open menu"
+            >
+              <Menu size={20} />
+            </button>
+
+            <div className="dash-search">
+              <Search size={16} />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search notes, content, tags, or categories..."
+              />
+              {query ? (
+                <button className="clear-search" onClick={() => setQuery('')} aria-label="Clear search">
+                  <X size={14} />
+                </button>
+              ) : (
+                <kbd className="desktop-only">⌘ K</kbd>
+              )}
+            </div>
           </div>
 
           <div className="top-actions">
             {isCloud ? (
               syncStatus === 'syncing' ? (
                 <span className="cloud-sync-pill syncing" title="Syncing notes with AWS DynamoDB">
-                  <RefreshCw size={13} className="spin" /> Syncing...
+                  <RefreshCw size={13} className="spin" />
+                  <span className="pill-text">Syncing...</span>
                 </span>
               ) : syncStatus === 'synced' ? (
                 <span className="cloud-sync-pill synced" title="All notes safely saved in AWS DynamoDB">
-                  <Cloud size={14} /> Synced to AWS
+                  <Cloud size={14} />
+                  <span className="pill-text">Synced</span>
                 </span>
               ) : (
                 <span className="cloud-sync-pill error" title="AWS API temporarily unreachable. Notes saved locally.">
-                  <CloudOff size={14} /> Cloud Offline
+                  <CloudOff size={14} />
+                  <span className="pill-text">Offline</span>
                 </span>
               )
             ) : (
               <span className="cloud-sync-pill local" title="Sign in with your email to enable automatic AWS cloud sync">
-                <CloudOff size={14} /> Local Mode
+                <CloudOff size={14} />
+                <span className="pill-text">Local</span>
               </span>
             )}
             <button
-              className="new-task-btn"
+              className="new-task-btn desktop-only"
               onClick={() => setTaskModalOpen(true)}
               title="Add a new task"
             >
               <CheckSquare size={15} /> Add Task
             </button>
             <Button
-              className="new-note-btn"
+              className="new-note-btn desktop-only"
               onClick={() =>
                 setEditor({
                   category: selectedCategory !== 'All' ? selectedCategory : (categories[0]?.name || 'Personal'),
@@ -825,6 +867,16 @@ export default function DashboardPage({ session, onLogout }) {
             >
               <Plus size={16} /> New Note
             </Button>
+
+            {/* Mobile quick avatar button */}
+            <button
+              type="button"
+              className="mobile-avatar-pill mobile-only"
+              onClick={() => setMobileDrawerOpen(true)}
+              title="Open profile menu"
+            >
+              {firstName.slice(0, 2).toUpperCase()}
+            </button>
           </div>
         </header>
 
@@ -1266,6 +1318,66 @@ export default function DashboardPage({ session, onLogout }) {
         onClose={() => setTaskModalOpen(false)}
         onAddTask={handleAddTaskFromModal}
       />
+
+      {/* Mobile Bottom Navigation Bar (Fixed bottom for phone users) */}
+      <nav className="dash-mobile-bottom-nav mobile-only">
+        <button
+          type="button"
+          className={`bottom-nav-item ${activeNav === 'All Notes' && selectedCategory === 'All' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveNav('All Notes')
+            setSelectedCategory('All')
+          }}
+        >
+          <FileText size={18} />
+          <span>Notes</span>
+        </button>
+
+        <button
+          type="button"
+          className={`bottom-nav-item ${activeNav === 'Favorites' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveNav('Favorites')
+            setSelectedCategory('All')
+          }}
+        >
+          <Star size={18} />
+          <span>Starred</span>
+        </button>
+
+        {/* Center elevated floating action button to create notes anytime */}
+        <button
+          type="button"
+          className="bottom-nav-fab"
+          onClick={() =>
+            setEditor({
+              category: selectedCategory !== 'All' ? selectedCategory : (categories[0]?.name || 'Personal'),
+            })
+          }
+          aria-label="Create new note"
+          title="Create new note"
+        >
+          <Plus size={22} />
+        </button>
+
+        <button
+          type="button"
+          className="bottom-nav-item"
+          onClick={() => setTaskModalOpen(true)}
+        >
+          <CheckSquare size={18} />
+          <span>Tasks</span>
+        </button>
+
+        <button
+          type="button"
+          className={`bottom-nav-item ${mobileDrawerOpen ? 'active' : ''}`}
+          onClick={() => setMobileDrawerOpen(true)}
+        >
+          <Menu size={18} />
+          <span>Menu</span>
+        </button>
+      </nav>
     </div>
   )
 }

@@ -3,11 +3,12 @@ import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import {
   ArrowRight, Archive, BookOpen, Check, ChevronDown, Cloud, ExternalLink, FileText, Folder,
-  Globe, LayoutGrid, Lock, NotebookPen, Play, Plus, Search,
+  Globe, LayoutGrid, Lock, LogIn, NotebookPen, Play, Plus, Search,
   ShieldCheck, Sparkles, Star, Tag, UserRound, Video
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Logo from '../components/BrandLogo'
+import Header from '../components/landing/Header'
 import ProductMockup from '../components/landing/ProductMockup'
 
 function SectionHeading({ eyebrow, children, text }) {
@@ -32,39 +33,25 @@ function BrowserScene() {
   )
 }
 
-function Header({ onNavigate }) {
-  const [open, setOpen] = useState(false)
-  const links = ['Features', 'How it works', 'Pricing', 'Security', 'Blog']
-  return (
-    <header className="site-header">
-      <div className="page-shell flex h-[66px] items-center justify-between">
-        <Logo />
-        <nav className="nav-links">
-          {links.map(link => <a key={link} href={`#${link.toLowerCase().replaceAll(' ', '-')}`}>{link}</a>)}
-        </nav>
-        <div className="hidden items-center gap-5 md:flex">
-          <button className="text-sm font-bold text-slate-600 hover:text-[#7C5CFC] transition-colors" onClick={() => onNavigate('login')}>Login</button>
-          <Button onClick={() => onNavigate('signup')}>Get Started <ArrowRight size={15} /></Button>
-        </div>
-        <button className="grid h-10 w-10 place-items-center rounded-xl border border-[#eaded5] text-ink md:hidden" onClick={() => setOpen(!open)} aria-label="Toggle navigation">
-          {open ? <span>✕</span> : <span>☰</span>}
-        </button>
-      </div>
-    </header>
-  )
-}
-
 function Hero({ onNavigate }) {
   return (
     <section id="top" className="hero-section overflow-hidden">
-      <div className="page-shell grid min-h-[440px] items-center gap-8 py-10 lg:grid-cols-[.93fr_1.07fr] lg:py-14">
+      <div className="page-shell grid min-h-[440px] items-center gap-8 py-8 sm:py-10 lg:grid-cols-[.93fr_1.07fr] lg:py-14">
         <div className="hero-copy">
           <span className="pill">Your Thoughts, Anywhere</span>
-          <h1 className="my-3 max-w-[550px] text-[36px] sm:text-[46px] lg:text-[54px] font-extrabold leading-[1.04] tracking-tight">Write Smarter.<br /><em>Organize</em> Better.<br />Achieve More.</h1>
-          <p className="mb-5 max-w-[490px] text-[15px] leading-relaxed text-[#6B6584]">A clean and powerful workspace to capture your ideas, organize important information, and access your notes anytime, anywhere.</p>
-          <div className="flex flex-wrap gap-3">
-            <Button onClick={() => onNavigate('signup')}>Get Started Free <ArrowRight size={15} /></Button>
-            <Button secondary><span className="play-chip"><Play size={10} fill="currentColor" /></span> Watch Demo</Button>
+          <h1 className="my-3 max-w-[550px] text-[32px] sm:text-[44px] lg:text-[54px] font-extrabold leading-[1.06] tracking-tight">
+            Write Smarter.<br /><em>Organize</em> Better.<br />Achieve More.
+          </h1>
+          <p className="mb-5 max-w-[490px] text-[14px] sm:text-[15px] leading-relaxed text-[#6B6584]">
+            A clean and powerful workspace to capture your ideas, organize important information, and access your notes anytime, anywhere.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={() => onNavigate('signup')}>
+              Get Started Free <ArrowRight size={15} />
+            </Button>
+            <Button secondary>
+              <span className="play-chip"><Play size={10} fill="currentColor" /></span> Watch Demo
+            </Button>
           </div>
           <div className="mt-5 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-500">
             <div className="avatar-row">
@@ -81,6 +68,7 @@ function Hero({ onNavigate }) {
     </section>
   )
 }
+
 
 function HashIcon() { return <span className="hash-icon">✣</span> }
 
