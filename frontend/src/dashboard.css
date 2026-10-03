@@ -395,6 +395,13 @@
   color: var(--text-primary);
 }
 
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .new-note-btn {
   display: inline-flex;
   align-items: center;

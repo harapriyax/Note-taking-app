@@ -1,0 +1,10 @@
+{
+  "httpMethod": "PUT",
+  "headers": {
+    "Authorization": "Bearer TOKEN_HERE"
+  },
+  "pathParameters": {
+    "id": "NOTE_ID_HERE"
+  },
+  "body": "{\"title\":\"Updated Note Title\",\"content\":\"Updated note content goes here.\"}"
+}

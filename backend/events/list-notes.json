@@ -1,0 +1,6 @@
+{
+  "httpMethod": "GET",
+  "headers": {
+    "Authorization": "Bearer TOKEN_HERE"
+  }
+}

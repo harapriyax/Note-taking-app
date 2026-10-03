@@ -1,0 +1,4 @@
+{
+  "httpMethod": "POST",
+  "body": "{\"email\":\"demo@noteflow.com\",\"password\":\"password123\"}"
+}

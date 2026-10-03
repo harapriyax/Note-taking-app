@@ -1,0 +1,7 @@
+{
+  "httpMethod": "POST",
+  "headers": {
+    "Authorization": "Bearer TOKEN_HERE"
+  },
+  "body": "{\"title\":\"My First Note\",\"content\":\"This is my note content.\"}"
+}
