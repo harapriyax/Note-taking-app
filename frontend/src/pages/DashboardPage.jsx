@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import {
   ArrowRight, Bell, CheckCircle2, CheckSquare, ChevronDown, ChevronRight, Clock3,
-  Cloud, CloudOff, FileText, Folder, Grid2X2, Home, LayoutGrid, List, LogOut, Menu, MoreHorizontal,
+  Cloud, CloudOff, Download, ExternalLink, FileText, Folder, Grid2X2, Home, Image as ImageIcon,
+  LayoutGrid, List, LogOut, Menu, MoreHorizontal,
   PanelLeft, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Tag, Trash2, X
 } from 'lucide-react'
 import { api, apiGet, apiPost, apiPut, apiDelete } from '../lib/api'
@@ -173,6 +174,7 @@ export default function DashboardPage({ session, onLogout }) {
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [viewMode, setViewMode] = useState('grid')
   const [editor, setEditor] = useState(null)
+  const [mediaPreview, setMediaPreview] = useState(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [taskText, setTaskText] = useState('')
@@ -208,6 +210,7 @@ export default function DashboardPage({ session, onLogout }) {
             category: n.category || 'General',
             tags: Array.isArray(n.tags) ? n.tags : [],
             color: n.color || '#e07a4a',
+            attachments: Array.isArray(n.attachments) ? n.attachments : [],
             isFavorite: Boolean(n.isFavorite),
             isTrashed: Boolean(n.isTrashed),
             createdAt: n.createdAt,
@@ -405,6 +408,7 @@ export default function DashboardPage({ session, onLogout }) {
             category: draft.category,
             tags: draft.tags,
             color: draft.color,
+            attachments: draft.attachments || [],
             isFavorite: draft.isFavorite,
             isTrashed: draft.isTrashed,
           })
@@ -419,6 +423,7 @@ export default function DashboardPage({ session, onLogout }) {
             category: draft.category || (categories[0]?.name || 'Work'),
             tags: draft.tags || [],
             color: draft.color || '#e07a4a',
+            attachments: draft.attachments || [],
           })
           if (res?.note) {
             const saved = { ...res.note, id: res.note.noteId }
@@ -1157,6 +1162,60 @@ export default function DashboardPage({ session, onLogout }) {
                       <h3 className="note-title">{note.title || 'Untitled Note'}</h3>
                       <p className="note-body">{plainText(note.content) || 'No additional text'}</p>
 
+                      {/* Attached Media & Documents Preview Strip */}
+                      {note.attachments && note.attachments.length > 0 && (
+                        <div className="card-attachments-wrap" onClick={(e) => e.stopPropagation()}>
+                          {/* Image Thumbnails Strip */}
+                          {note.attachments.filter((a) => a.type === 'image' || a.mimeType?.startsWith('image/')).length > 0 && (
+                            <div className="card-images-strip">
+                              {note.attachments
+                                .filter((a) => a.type === 'image' || a.mimeType?.startsWith('image/'))
+                                .slice(0, 3)
+                                .map((img, i) => (
+                                  <img
+                                    key={img.id || img.key || i}
+                                    src={img.url}
+                                    alt={img.name || 'image'}
+                                    className="card-thumb"
+                                    onClick={() => setMediaPreview(img)}
+                                    title={img.name || 'Click to view full image'}
+                                  />
+                                ))}
+                              {note.attachments.filter((a) => a.type === 'image' || a.mimeType?.startsWith('image/')).length > 3 && (
+                                <span
+                                  className="card-more-thumbs"
+                                  onClick={() => setEditor(note)}
+                                  title="View all attached files"
+                                >
+                                  +{note.attachments.filter((a) => a.type === 'image' || a.mimeType?.startsWith('image/')).length - 3}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* PDF Document Badges */}
+                          {note.attachments.filter((a) => a.type === 'pdf' || a.mimeType === 'application/pdf').length > 0 && (
+                            <div className="card-pdfs-wrap">
+                              {note.attachments
+                                .filter((a) => a.type === 'pdf' || a.mimeType === 'application/pdf')
+                                .map((pdf, i) => (
+                                  <a
+                                    key={pdf.id || pdf.key || i}
+                                    href={pdf.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="card-pdf-pill"
+                                    title={`Open ${pdf.name || pdf.fileName}`}
+                                  >
+                                    <FileText size={12} className="text-[#E05A47] flex-shrink-0" />
+                                    <span className="truncate max-w-[130px]">{pdf.name || pdf.fileName}</span>
+                                  </a>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {note.tags && note.tags.length > 0 && (
                         <div className="note-tags-wrap">
                           {note.tags.map((tag) => (
@@ -1295,6 +1354,7 @@ export default function DashboardPage({ session, onLogout }) {
       {editor !== null && (
         <NoteEditor
           note={editor?.id ? editor : null}
+          token={token}
           categories={categories}
           onOpenAddCategory={() => setCategoryModalOpen(true)}
           onClose={() => setEditor(null)}
@@ -1318,6 +1378,61 @@ export default function DashboardPage({ session, onLogout }) {
         onClose={() => setTaskModalOpen(false)}
         onAddTask={handleAddTaskFromModal}
       />
+
+      {/* Lightbox Media Viewer Modal */}
+      {mediaPreview && (
+        <div
+          className="lightbox-backdrop"
+          onClick={() => setMediaPreview(null)}
+        >
+          <div
+            className="lightbox-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="lightbox-topbar">
+              <span className="lightbox-title truncate">
+                {mediaPreview.name || mediaPreview.fileName}
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={mediaPreview.url}
+                  download={mediaPreview.name || mediaPreview.fileName}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="lightbox-btn"
+                  title="Download file"
+                >
+                  <Download size={16} />
+                </a>
+                <button
+                  type="button"
+                  className="lightbox-btn"
+                  onClick={() => setMediaPreview(null)}
+                  title="Close preview"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="lightbox-content">
+              {mediaPreview.type === 'pdf' || mediaPreview.mimeType === 'application/pdf' ? (
+                <iframe
+                  src={mediaPreview.url}
+                  title={mediaPreview.name}
+                  className="lightbox-pdf-frame"
+                />
+              ) : (
+                <img
+                  src={mediaPreview.url}
+                  alt={mediaPreview.name}
+                  className="lightbox-img"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Bottom Navigation Bar (Fixed bottom for phone users) */}
       <nav className="dash-mobile-bottom-nav mobile-only">

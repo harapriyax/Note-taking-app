@@ -7,7 +7,7 @@ const User = {
       TableName: TABLES.USERS,
       IndexName: 'EmailIndex',
       KeyConditionExpression: 'email = :email',
-      ExpressionAttributeValues: { ':email': email },
+      ExpressionAttributeValues: { ':email': email.toLowerCase().trim() },
       Limit: 1,
     }));
     return result.Items?.[0] || null;
@@ -21,18 +21,18 @@ const User = {
     return result.Item || null;
   },
 
-  async create({ userId, fullName, email, passwordHash }) {
+  async create({ userId, fullName, email, passwordHash = null }) {
     const user = {
       userId,
-      fullName,
+      fullName: fullName || email.split('@')[0],
       email: email.toLowerCase().trim(),
-      passwordHash,
+      ...(passwordHash ? { passwordHash } : {}),
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     await dynamodb.send(new PutCommand({
       TableName: TABLES.USERS,
       Item: user,
-      ConditionExpression: 'attribute_not_exists(userId)',
     }));
     return user;
   },

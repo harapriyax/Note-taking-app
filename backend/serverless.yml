@@ -2,19 +2,26 @@ service: noteflow-api
 
 frameworkVersion: '3'
 
+custom:
+  attachmentsBucket: noteflow-attachments-${self:provider.stage}-${aws:accountId}
+
 provider:
   name: aws
   runtime: nodejs20.x
   region: ap-south-1
   stage: ${opt:stage, 'live'}
   memorySize: 256
-  timeout: 30
+  timeout: 25
   environment:
+    STAGE: ${self:provider.stage}
     USERS_TABLE: ${self:service}-users-${self:provider.stage}
     NOTES_TABLE: ${self:service}-notes-${self:provider.stage}
     TASKS_TABLE: ${self:service}-tasks-${self:provider.stage}
     CATEGORIES_TABLE: ${self:service}-categories-${self:provider.stage}
     JWT_SECRET: ${env:JWT_SECRET, 'noteflow-jwt-secret-change-me'}
+    USER_POOL_ID: !Ref CognitoUserPool
+    USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
+    ATTACHMENTS_BUCKET: ${self:custom.attachmentsBucket}
   httpApi:
     cors:
       allowedOrigins:
@@ -46,6 +53,29 @@ provider:
             - Fn::Join: ['/', [Fn::GetAtt: [NotesTable, Arn], 'index', '*']]
             - Fn::GetAtt: [TasksTable, Arn]
             - Fn::GetAtt: [CategoriesTable, Arn]
+        - Effect: Allow
+          Action:
+            - cognito-idp:SignUp
+            - cognito-idp:ConfirmSignUp
+            - cognito-idp:ResendConfirmationCode
+            - cognito-idp:InitiateAuth
+            - cognito-idp:AdminInitiateAuth
+            - cognito-idp:ForgotPassword
+            - cognito-idp:ConfirmForgotPassword
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminUpdateUserAttributes
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:GetUser
+          Resource:
+            - !GetAtt CognitoUserPool.Arn
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+            - s3:HeadObject
+          Resource:
+            - !Join ['', ['arn:aws:s3:::', '${self:custom.attachmentsBucket}', '/*']]
 
 functions:
   # ──── Auth ────
@@ -56,11 +86,39 @@ functions:
           path: /api/auth/signup
           method: post
 
+  authConfirmSignup:
+    handler: src/handlers/auth.confirmSignup
+    events:
+      - httpApi:
+          path: /api/auth/confirm-signup
+          method: post
+
+  authResendCode:
+    handler: src/handlers/auth.resendCode
+    events:
+      - httpApi:
+          path: /api/auth/resend-code
+          method: post
+
   authLogin:
     handler: src/handlers/auth.login
     events:
       - httpApi:
           path: /api/auth/login
+          method: post
+
+  authForgotPassword:
+    handler: src/handlers/auth.forgotPassword
+    events:
+      - httpApi:
+          path: /api/auth/forgot-password
+          method: post
+
+  authResetPassword:
+    handler: src/handlers/auth.resetPassword
+    events:
+      - httpApi:
+          path: /api/auth/reset-password
           method: post
 
   authMe:
@@ -76,6 +134,14 @@ functions:
       - httpApi:
           path: /api/auth/profile
           method: put
+
+  # ──── Uploads (S3 Attachments) ────
+  uploadsPresignedUrl:
+    handler: src/handlers/uploads.getPresignedUrl
+    events:
+      - httpApi:
+          path: /api/uploads/presigned-url
+          method: post
 
   # ──── Notes ────
   notesList:
@@ -209,6 +275,79 @@ functions:
 
 resources:
   Resources:
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: noteflow-users-${self:provider.stage}
+        UsernameAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: false
+            RequireUppercase: true
+        Schema:
+          - Name: name
+            AttributeDataType: String
+            Mutable: true
+            Required: false
+        VerificationMessageTemplate:
+          DefaultEmailOption: CONFIRM_WITH_CODE
+          EmailSubject: "Your NoteFlow Verification Code"
+          EmailMessage: "Your verification code for NoteFlow is {####}. Enter this code to verify your account."
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: noteflow-web-client-${self:provider.stage}
+        UserPoolId: !Ref CognitoUserPool
+        GenerateSecret: false
+        ExplicitAuthFlows:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+          - ALLOW_USER_SRP_AUTH
+          - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        PreventUserExistenceErrors: ENABLED
+
+    AttachmentsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.attachmentsBucket}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - HEAD
+              AllowedOrigins:
+                - '*'
+              MaxAge: 3600
+
+    AttachmentsBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref AttachmentsBucket
+        PolicyDocument:
+          Statement:
+            - Sid: PublicReadGetObject
+              Effect: Allow
+              Principal: '*'
+              Action:
+                - s3:GetObject
+              Resource:
+                - !Join ['', ['arn:aws:s3:::', !Ref AttachmentsBucket, '/attachments/*']]
+
     UsersTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -283,3 +422,12 @@ resources:
       Description: URL of the API Gateway
       Value:
         Fn::GetAtt: [HttpApi, ApiEndpoint]
+    UserPoolId:
+      Description: Cognito User Pool ID
+      Value: !Ref CognitoUserPool
+    UserPoolClientId:
+      Description: Cognito User Pool Client ID
+      Value: !Ref CognitoUserPoolClient
+    AttachmentsBucketName:
+      Description: S3 Attachments Bucket Name
+      Value: !Ref AttachmentsBucket

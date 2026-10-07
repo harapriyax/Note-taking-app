@@ -61,6 +61,7 @@ const Note = {
       tags: noteData.tags || [],
       category: noteData.category || 'Personal',
       color: noteData.color || '#6C63FF',
+      attachments: noteData.attachments || [],
       isFavorite: false,
       isTrashed: false,
       createdAt: new Date().toISOString(),

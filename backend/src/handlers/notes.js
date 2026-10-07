@@ -47,7 +47,7 @@ module.exports.create = async (event) => {
   const userId = getUserId(event);
   if (!userId) return error('Unauthorized', 401);
 
-  const { title, content, tags, category, color } = parseBody(event);
+  const { title, content, tags, category, color, attachments } = parseBody(event);
 
   const note = await Note.create({
     userId,
@@ -57,6 +57,7 @@ module.exports.create = async (event) => {
     tags,
     category,
     color,
+    attachments: Array.isArray(attachments) ? attachments : [],
   });
 
   return success({ success: true, note }, 201);
@@ -78,6 +79,7 @@ module.exports.update = async (event) => {
   if (body.tags !== undefined) updates.tags = body.tags;
   if (body.category !== undefined) updates.category = body.category;
   if (body.color !== undefined) updates.color = body.color;
+  if (body.attachments !== undefined) updates.attachments = body.attachments;
   if (body.isFavorite !== undefined) updates.isFavorite = body.isFavorite;
   if (body.isTrashed !== undefined) updates.isTrashed = body.isTrashed;
 
