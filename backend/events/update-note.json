@@ -1,10 +1,11 @@
 {
   "httpMethod": "PUT",
   "headers": {
-    "Authorization": "Bearer TOKEN_HERE"
+    "Authorization": "Bearer PASTE_TOKEN_HERE",
+    "Content-Type": "application/json"
   },
   "pathParameters": {
-    "id": "NOTE_ID_HERE"
+    "id": "PASTE_NOTE_ID_HERE"
   },
-  "body": "{\"title\":\"Updated Note Title\",\"content\":\"Updated note content goes here.\"}"
+  "body": "{\"title\":\"Updated Note Title\",\"content\":\"Updated note content via local invoke.\",\"tags\":[\"updated\",\"test\"],\"color\":\"#E74C3C\"}"
 }

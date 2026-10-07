@@ -1,9 +1,9 @@
 {
   "httpMethod": "DELETE",
   "headers": {
-    "Authorization": "Bearer TOKEN_HERE"
+    "Authorization": "Bearer PASTE_TOKEN_HERE"
   },
   "pathParameters": {
-    "id": "NOTE_ID_HERE"
+    "id": "PASTE_NOTE_ID_HERE"
   }
 }

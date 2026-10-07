@@ -1,7 +1,8 @@
 {
   "httpMethod": "POST",
   "headers": {
-    "Authorization": "Bearer TOKEN_HERE"
+    "Authorization": "Bearer PASTE_TOKEN_HERE",
+    "Content-Type": "application/json"
   },
-  "body": "{\"title\":\"My First Note\",\"content\":\"This is my note content.\"}"
+  "body": "{\"title\":\"My First Note\",\"content\":\"This is my note content created via local invoke.\",\"tags\":[\"test\",\"demo\"],\"color\":\"#4A90D9\"}"
 }

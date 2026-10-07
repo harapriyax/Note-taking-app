@@ -1,4 +1,7 @@
 {
   "httpMethod": "POST",
-  "body": "{\"fullName\":\"Demo User\",\"email\":\"demo@noteflow.com\",\"password\":\"password123\"}"
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"fullName\":\"Test User\",\"email\":\"testuser@noteflow.com\",\"password\":\"Test@1234\"}"
 }

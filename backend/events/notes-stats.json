@@ -2,6 +2,5 @@
   "httpMethod": "GET",
   "headers": {
     "Authorization": "Bearer PASTE_TOKEN_HERE"
-  },
-  "queryStringParameters": null
+  }
 }

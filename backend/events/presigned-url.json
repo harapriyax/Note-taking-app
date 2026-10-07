@@ -1,0 +1,8 @@
+{
+  "httpMethod": "POST",
+  "headers": {
+    "Authorization": "Bearer PASTE_TOKEN_HERE",
+    "Content-Type": "application/json"
+  },
+  "body": "{\"files\":[{\"fileName\":\"test-image.png\",\"fileType\":\"image/png\",\"fileSize\":102400},{\"fileName\":\"document.pdf\",\"fileType\":\"application/pdf\",\"fileSize\":204800}]}"
+}

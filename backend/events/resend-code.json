@@ -3,5 +3,5 @@
   "headers": {
     "Content-Type": "application/json"
   },
-  "body": "{\"email\":\"testuser@noteflow.com\",\"password\":\"Test@1234\"}"
+  "body": "{\"email\":\"testuser@noteflow.com\"}"
 }

@@ -1,0 +1,8 @@
+{
+  "httpMethod": "PUT",
+  "headers": {
+    "Authorization": "Bearer PASTE_TOKEN_HERE",
+    "Content-Type": "application/json"
+  },
+  "body": "{\"fullName\":\"Updated Test User\"}"
+}
