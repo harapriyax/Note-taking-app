@@ -50,102 +50,102 @@
 # ══════════════════════════════════════════════
 #  1. HEALTH CHECK
 # ══════════════════════════════════════════════
-npx serverless invoke local -f health --path events/health.json
+serverless invoke local -f health --path events/health.json
 
 
 # ══════════════════════════════════════════════
 #  2. SIGNUP (Registers user in AWS Cognito)
 #     Sends 6-digit verification code to email
 # ══════════════════════════════════════════════
-npx serverless invoke local -f authSignup --path events/signup.json
+serverless invoke local -f authSignup --path events/signup.json
 
 
 # ══════════════════════════════════════════════
 #  3. CONFIRM SIGNUP (Verify email with code)
 #     Put 6-digit code into events/confirm-signup.json first
 # ══════════════════════════════════════════════
-npx serverless invoke local -f authConfirmSignup --path events/confirm-signup.json
+serverless invoke local -f authConfirmSignup --path events/confirm-signup.json
 
 
 # ══════════════════════════════════════════════
 #  4. RESEND CONFIRMATION CODE (Optional)
 # ══════════════════════════════════════════════
-npx serverless invoke local -f authResendCode --path events/resend-code.json
+serverless invoke local -f authResendCode --path events/resend-code.json
 
 
 # ══════════════════════════════════════════════
 #  5. LOGIN → Copy the "token" from the response!
 # ══════════════════════════════════════════════
-npx serverless invoke local -f authLogin --path events/login.json
+serverless invoke local -f authLogin --path events/login.json
 
 
 # ══════════════════════════════════════════════
 #  6. FORGOT PASSWORD (Optional - sends reset code)
 # ══════════════════════════════════════════════
-npx serverless invoke local -f authForgotPassword --path events/forgot-password.json
+serverless invoke local -f authForgotPassword --path events/forgot-password.json
 
 
 # ══════════════════════════════════════════════
 #  7. RESET PASSWORD (Optional - confirm new password)
 #     Put reset code into events/reset-password.json first
 # ══════════════════════════════════════════════
-npx serverless invoke local -f authResetPassword --path events/reset-password.json
+serverless invoke local -f authResetPassword --path events/reset-password.json
 
 
 # ══════════════════════════════════════════════
 #  8. GET CURRENT USER PROFILE (Requires token)
 # ══════════════════════════════════════════════
-npx serverless invoke local -f authMe --path events/get-me.json
+serverless invoke local -f authMe --path events/get-me.json
 
 
 # ══════════════════════════════════════════════
 #  9. UPDATE USER PROFILE (Requires token)
 # ══════════════════════════════════════════════
-npx serverless invoke local -f authProfile --path events/update-profile.json
+serverless invoke local -f authProfile --path events/update-profile.json
 
 
 # ══════════════════════════════════════════════
 #  10. CREATE NOTE → Copy the "noteId" from the response!
 #      (Requires token)
 # ══════════════════════════════════════════════
-npx serverless invoke local -f notesCreate --path events/create-note.json
+serverless invoke local -f notesCreate --path events/create-note.json
 
 
 # ══════════════════════════════════════════════
 #  11. LIST NOTES (Requires token)
 # ══════════════════════════════════════════════
-npx serverless invoke local -f notesList --path events/list-notes.json
+serverless invoke local -f notesList --path events/list-notes.json
 
 
 # ══════════════════════════════════════════════
 #  12. GET NOTE BY ID (Requires token + noteId)
 #      Put noteId into events/get-note.json first
 # ══════════════════════════════════════════════
-npx serverless invoke local -f notesGetById --path events/get-note.json
+serverless invoke local -f notesGetById --path events/get-note.json
 
 
 # ══════════════════════════════════════════════
 #  13. UPDATE NOTE (Requires token + noteId)
 #      Put noteId into events/update-note.json first
 # ══════════════════════════════════════════════
-npx serverless invoke local -f notesUpdate --path events/update-note.json
+serverless invoke local -f notesUpdate --path events/update-note.json
 
 
 # ══════════════════════════════════════════════
 #  14. GET NOTES STATS (Requires token)
 # ══════════════════════════════════════════════
-npx serverless invoke local -f notesStats --path events/notes-stats.json
+serverless invoke local -f notesStats --path events/notes-stats.json
 
 
 # ══════════════════════════════════════════════
 #  15. GET PRESIGNED S3 UPLOAD URL (Requires token)
 #      Generates secure S3 upload URL for images/attachments
 # ══════════════════════════════════════════════
-npx serverless invoke local -f uploadsPresignedUrl --path events/presigned-url.json
+serverless invoke local -f uploadsPresignedUrl --path events/upload-file.json
 
 
 # ══════════════════════════════════════════════
 #  16. DELETE NOTE (Requires token + noteId)
 #      Put noteId into events/delete-note.json first
 # ══════════════════════════════════════════════
-npx serverless invoke local -f notesDelete --path events/delete-note.json
+serverless invoke local -f notesDelete --path events/delete-note.json
