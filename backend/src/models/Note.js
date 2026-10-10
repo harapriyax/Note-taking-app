@@ -38,8 +38,58 @@ const Note = {
       );
     }
 
-    // Sort by updatedAt descending
-    notes.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+    // Sort by isPinned descending, then updatedAt descending
+    notes.sort((a, b) => {
+      const pinA = a.isPinned ? 1 : 0;
+      const pinB = b.isPinned ? 1 : 0;
+      if (pinB !== pinA) return pinB - pinA;
+      return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+    });
+
+    return notes;
+  },
+
+  async search(userId, queryText, filters = {}) {
+    if (!queryText || typeof queryText !== 'string' || !queryText.trim()) {
+      return this.listByUser(userId, filters);
+    }
+
+    const result = await dynamodb.send(new QueryCommand({
+      TableName: TABLES.NOTES,
+      KeyConditionExpression: 'userId = :uid',
+      ExpressionAttributeValues: { ':uid': userId },
+    }));
+
+    let notes = result.Items || [];
+    const term = queryText.trim().toLowerCase();
+
+    // Filter by trashed status
+    if (filters.trashed === 'true') {
+      notes = notes.filter(n => n.isTrashed);
+    } else if (filters.trashed !== 'all') {
+      notes = notes.filter(n => !n.isTrashed);
+    }
+
+    // Filter by category
+    if (filters.category && filters.category !== 'All' && filters.category !== 'All Notes') {
+      notes = notes.filter(n => n.category?.toLowerCase() === filters.category.toLowerCase());
+    }
+
+    // Backend Search by title, content, or tags
+    notes = notes.filter(n => {
+      const titleMatch = n.title && n.title.toLowerCase().includes(term);
+      const contentMatch = n.content && n.content.toLowerCase().includes(term);
+      const tagMatch = (n.tags || []).some(t => t.toLowerCase().includes(term));
+      return Boolean(titleMatch || contentMatch || tagMatch);
+    });
+
+    // Sort by isPinned descending, then updatedAt descending
+    notes.sort((a, b) => {
+      const pinA = a.isPinned ? 1 : 0;
+      const pinB = b.isPinned ? 1 : 0;
+      if (pinB !== pinA) return pinB - pinA;
+      return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+    });
 
     return notes;
   },
@@ -62,7 +112,8 @@ const Note = {
       category: noteData.category || 'Personal',
       color: noteData.color || '#6C63FF',
       attachments: noteData.attachments || [],
-      isFavorite: false,
+      isFavorite: Boolean(noteData.isFavorite) || false,
+      isPinned: Boolean(noteData.isPinned) || false,
       isTrashed: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

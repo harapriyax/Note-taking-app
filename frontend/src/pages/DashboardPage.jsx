@@ -3,9 +3,9 @@ import {
   ArrowRight, Bell, CheckCircle2, CheckSquare, ChevronDown, ChevronRight, Clock3,
   Cloud, CloudOff, Download, ExternalLink, FileText, Folder, Grid2X2, Home, Image as ImageIcon,
   LayoutGrid, List, LogOut, Menu, MoreHorizontal,
-  PanelLeft, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Tag, Trash2, X
+  PanelLeft, Pin, Plus, RefreshCw, RotateCcw, Search, Sparkles, Star, Tag, Trash2, X
 } from 'lucide-react'
-import { api, apiGet, apiPost, apiPut, apiDelete } from '../lib/api'
+import { api, apiGet, apiPost, apiPut, apiDelete, searchNotesApi, togglePinNoteApi } from '../lib/api'
 import Button from '../components/ui/Button'
 import Logo from '../components/BrandLogo'
 import CalendarWidget from '../components/CalendarWidget'
@@ -21,6 +21,7 @@ const SEED_NOTES = [
     category: 'Work',
     tags: ['#work', '#project', '#trident'],
     isFavorite: true,
+    isPinned: true,
     isTrashed: false,
     createdAt: new Date(Date.now() - 36e5 * 2).toISOString(),
     updatedAt: new Date(Date.now() - 36e5 * 2).toISOString(),
@@ -32,6 +33,7 @@ const SEED_NOTES = [
     category: 'Personal',
     tags: ['#health', '#fitness'],
     isFavorite: false,
+    isPinned: false,
     isTrashed: false,
     createdAt: new Date(Date.now() - 36e5 * 18).toISOString(),
     updatedAt: new Date(Date.now() - 36e5 * 18).toISOString(),
@@ -43,6 +45,7 @@ const SEED_NOTES = [
     category: 'College',
     tags: ['#study', '#dbms', '#cs'],
     isFavorite: true,
+    isPinned: false,
     isTrashed: false,
     createdAt: new Date(Date.now() - 36e5 * 30).toISOString(),
     updatedAt: new Date(Date.now() - 36e5 * 30).toISOString(),
@@ -54,6 +57,7 @@ const SEED_NOTES = [
     category: 'Ideas',
     tags: ['#ideas', '#ai', '#startup'],
     isFavorite: false,
+    isPinned: false,
     isTrashed: false,
     createdAt: new Date(Date.now() - 36e5 * 48).toISOString(),
     updatedAt: new Date(Date.now() - 36e5 * 48).toISOString(),
@@ -65,6 +69,7 @@ const SEED_NOTES = [
     category: 'Projects',
     tags: ['#design', '#ui', '#inspiration'],
     isFavorite: false,
+    isPinned: false,
     isTrashed: false,
     createdAt: new Date(Date.now() - 36e5 * 72).toISOString(),
     updatedAt: new Date(Date.now() - 36e5 * 72).toISOString(),
@@ -85,18 +90,36 @@ const DEFAULT_TASKS = [
   { id: 3, text: 'Prepare gym workout plan', priority: 'Medium', done: false },
 ]
 
-function dateLabel(iso) {
+function formatLastUpdated(iso) {
   if (!iso) return 'Just now'
-  const delta = Math.max(0, Date.now() - new Date(iso).getTime())
-  const mins = Math.round(delta / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.round(hours / 24)
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days}d ago`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return 'Recently modified'
+  const dateStr = d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  const timeStr = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+  return `${dateStr} • ${timeStr}`
+}
+
+function formatFullDateTime(iso) {
+  if (!iso) return 'Just now'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  return d.toLocaleString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
 }
 
 function plainText(value = '') {
@@ -170,6 +193,8 @@ export default function DashboardPage({ session, onLogout }) {
   })
 
   const [query, setQuery] = useState('')
+  const [searchResults, setSearchResults] = useState(null)
+  const [isSearching, setIsSearching] = useState(false)
   const [activeNav, setActiveNav] = useState('All Notes')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [viewMode, setViewMode] = useState('grid')
@@ -212,6 +237,7 @@ export default function DashboardPage({ session, onLogout }) {
             color: n.color || '#e07a4a',
             attachments: Array.isArray(n.attachments) ? n.attachments : [],
             isFavorite: Boolean(n.isFavorite),
+            isPinned: Boolean(n.isPinned),
             isTrashed: Boolean(n.isTrashed),
             createdAt: n.createdAt,
             updatedAt: n.updatedAt,
@@ -389,6 +415,7 @@ export default function DashboardPage({ session, onLogout }) {
       updatedAt: now,
       createdAt: draft.createdAt || now,
       isFavorite: Boolean(draft.isFavorite),
+      isPinned: Boolean(draft.isPinned),
       isTrashed: false,
     }
 
@@ -409,7 +436,8 @@ export default function DashboardPage({ session, onLogout }) {
             tags: draft.tags,
             color: draft.color,
             attachments: draft.attachments || [],
-            isFavorite: draft.isFavorite,
+            isFavorite: Boolean(draft.isFavorite),
+            isPinned: Boolean(draft.isPinned),
             isTrashed: draft.isTrashed,
           })
           if (res?.note) {
@@ -424,6 +452,8 @@ export default function DashboardPage({ session, onLogout }) {
             tags: draft.tags || [],
             color: draft.color || '#e07a4a',
             attachments: draft.attachments || [],
+            isFavorite: Boolean(draft.isFavorite),
+            isPinned: Boolean(draft.isPinned),
           })
           if (res?.note) {
             const saved = { ...res.note, id: res.note.noteId }
@@ -439,6 +469,27 @@ export default function DashboardPage({ session, onLogout }) {
       }
     } else {
       showToast(isEdit ? 'Note updated' : 'New note created')
+    }
+  }
+
+  // Toggle pin to top (Sync with AWS DynamoDB)
+  const handleTogglePin = async (e, note) => {
+    e.stopPropagation()
+    const updated = !note.isPinned
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === note.id ? { ...n, isPinned: updated, updatedAt: new Date().toISOString() } : n
+      )
+    )
+    showToast(updated ? 'Note pinned to top' : 'Note unpinned')
+
+    if (isCloud && note.id && !String(note.id).startsWith('temp-')) {
+      try {
+        await togglePinNoteApi(token, note.id)
+        setSyncStatus('synced')
+      } catch (err) {
+        console.warn('Failed to sync pin status to cloud:', err)
+      }
     }
   }
 
@@ -630,36 +681,123 @@ export default function DashboardPage({ session, onLogout }) {
     }
   }
 
-  // Filter notes based on active navigation & category & query
-  const filteredNotes = useMemo(() => {
-    const term = query.trim().toLowerCase()
+  // Backend search with debouncing (queries backend API rather than client filter)
+  useEffect(() => {
+    const term = query.trim()
+    if (!term) {
+      setSearchResults(null)
+      setIsSearching(false)
+      return
+    }
 
-    return notes.filter((n) => {
-      // Navigation filter
-      if (activeNav === 'Trash') {
-        if (!n.isTrashed) return false
+    let cancelled = false
+    setIsSearching(true)
+
+    const timer = setTimeout(async () => {
+      if (isCloud) {
+        try {
+          const res = await searchNotesApi(token, term, {
+            category: selectedCategory !== 'All' ? selectedCategory : undefined,
+            trashed: activeNav === 'Trash' ? 'true' : 'false',
+          })
+          if (cancelled) return
+          if (res?.notes && Array.isArray(res.notes)) {
+            const mapped = res.notes.map((n) => ({
+              id: n.noteId || n.id,
+              title: n.title || 'Untitled',
+              content: n.content || '',
+              category: n.category || 'General',
+              tags: Array.isArray(n.tags) ? n.tags : [],
+              color: n.color || '#e07a4a',
+              attachments: Array.isArray(n.attachments) ? n.attachments : [],
+              isFavorite: Boolean(n.isFavorite),
+              isPinned: Boolean(n.isPinned),
+              isTrashed: Boolean(n.isTrashed),
+              createdAt: n.createdAt,
+              updatedAt: n.updatedAt,
+            }))
+            setSearchResults(mapped)
+          }
+        } catch (err) {
+          console.error('Backend search query failed:', err)
+          if (!cancelled) {
+            // Offline/fallback to local filter
+            const lowerTerm = term.toLowerCase()
+            const local = notes.filter((n) => {
+              if (activeNav === 'Trash' ? !n.isTrashed : n.isTrashed) return false
+              if (activeNav === 'Favorites' && !n.isFavorite) return false
+              if (selectedCategory !== 'All' && n.category !== selectedCategory) return false
+              return (
+                n.title?.toLowerCase().includes(lowerTerm) ||
+                plainText(n.content).toLowerCase().includes(lowerTerm) ||
+                n.tags?.some((t) => t.toLowerCase().includes(lowerTerm))
+              )
+            })
+            setSearchResults(local)
+          }
+        } finally {
+          if (!cancelled) setIsSearching(false)
+        }
       } else {
-        if (n.isTrashed) return false
-        if (activeNav === 'Favorites' && !n.isFavorite) return false
+        // Local mode fallback
+        const lowerTerm = term.toLowerCase()
+        const local = notes.filter((n) => {
+          if (activeNav === 'Trash' ? !n.isTrashed : n.isTrashed) return false
+          if (activeNav === 'Favorites' && !n.isFavorite) return false
+          if (selectedCategory !== 'All' && n.category !== selectedCategory) return false
+          return (
+            n.title?.toLowerCase().includes(lowerTerm) ||
+            plainText(n.content).toLowerCase().includes(lowerTerm) ||
+            n.tags?.some((t) => t.toLowerCase().includes(lowerTerm))
+          )
+        })
+        if (!cancelled) {
+          setSearchResults(local)
+          setIsSearching(false)
+        }
       }
+    }, 280)
 
-      // Category filter (only when not in Trash)
-      if (activeNav !== 'Trash' && selectedCategory !== 'All') {
-        if (n.category !== selectedCategory) return false
-      }
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [query, isCloud, token, selectedCategory, activeNav, notes])
 
-      // Search query
-      if (term) {
-        const titleMatch = n.title?.toLowerCase().includes(term)
-        const contentMatch = plainText(n.content).toLowerCase().includes(term)
-        const tagMatch = n.tags?.some((t) => t.toLowerCase().includes(term))
-        const catMatch = n.category?.toLowerCase().includes(term)
-        if (!titleMatch && !contentMatch && !tagMatch && !catMatch) return false
-      }
+  // Displayed notes: uses backend search results if query is active,
+  // otherwise filters by tab & category.
+  // ALWAYS sorts pinned notes to the top, then by newest updatedAt!
+  const displayedNotes = useMemo(() => {
+    let sourceList
+    if (query.trim() && searchResults !== null) {
+      sourceList = searchResults
+    } else {
+      sourceList = notes.filter((n) => {
+        // Navigation filter
+        if (activeNav === 'Trash') {
+          if (!n.isTrashed) return false
+        } else {
+          if (n.isTrashed) return false
+          if (activeNav === 'Favorites' && !n.isFavorite) return false
+        }
 
-      return true
+        // Category filter (only when not in Trash)
+        if (activeNav !== 'Trash' && selectedCategory !== 'All') {
+          if (n.category !== selectedCategory) return false
+        }
+
+        return true
+      })
+    }
+
+    // Sort by isPinned descending (pinned notes always at top), then by updatedAt descending
+    return [...sourceList].sort((a, b) => {
+      const pinA = a.isPinned ? 1 : 0
+      const pinB = b.isPinned ? 1 : 0
+      if (pinB !== pinA) return pinB - pinA
+      return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
     })
-  }, [notes, activeNav, selectedCategory, query])
+  }, [notes, activeNav, selectedCategory, query, searchResults])
 
   // Filter tasks based on taskFilter
   const filteredTasks = useMemo(() => {
@@ -815,14 +953,25 @@ export default function DashboardPage({ session, onLogout }) {
             </button>
 
             <div className="dash-search">
-              <Search size={16} />
+              {isSearching ? (
+                <RefreshCw size={16} className="spin text-[#e07a4a]" />
+              ) : (
+                <Search size={16} />
+              )}
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search notes, content, tags, or categories..."
+                placeholder="Search notes by title or content (backend query)..."
               />
               {query ? (
-                <button className="clear-search" onClick={() => setQuery('')} aria-label="Clear search">
+                <button
+                  className="clear-search"
+                  onClick={() => {
+                    setQuery('')
+                    setSearchResults(null)
+                  }}
+                  aria-label="Clear search"
+                >
                   <X size={14} />
                 </button>
               ) : (
@@ -1045,8 +1194,36 @@ export default function DashboardPage({ session, onLogout }) {
               </div>
             </div>
 
+            {/* Search query feedback banner */}
+            {query.trim() && (
+              <div className="search-status-banner">
+                <div className="search-status-info">
+                  <Search size={14} className="search-status-icon" />
+                  <span>
+                    Backend search for <strong>"{query.trim()}"</strong>: {displayedNotes.length} {displayedNotes.length === 1 ? 'note' : 'notes'} found
+                  </span>
+                  {isSearching && (
+                    <span className="search-status-loading">
+                      <RefreshCw size={12} className="spin inline mr-1" /> Searching...
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="search-status-clear"
+                  onClick={() => {
+                    setQuery('')
+                    setSearchResults(null)
+                  }}
+                  title="Clear search"
+                >
+                  <X size={13} /> Clear Search
+                </button>
+              </div>
+            )}
+
             {/* Notes Grid / List */}
-            {filteredNotes.length === 0 ? (
+            {displayedNotes.length === 0 ? (
               <div className="notes-empty-state">
                 <div className="empty-icon-wrap">
                   {activeNav === 'Trash' ? (
@@ -1091,32 +1268,53 @@ export default function DashboardPage({ session, onLogout }) {
               </div>
             ) : (
               <div className={`notes-container ${viewMode === 'list' ? 'list-view' : 'grid-view'}`}>
-                {filteredNotes.map((note) => {
+                {displayedNotes.map((note) => {
                   const catColor = getCatColor(note.category)
                   return (
                     <div
                       key={note.id}
-                      className="note-card"
+                      className={`note-card ${note.isPinned ? 'is-pinned' : ''}`}
                       onClick={() => setEditor(note)}
                       role="button"
                       tabIndex={0}
                     >
                       <div className="note-card-header">
-                        <span
-                          className="category-badge"
-                          style={{
-                            backgroundColor: `${catColor}15`,
-                            color: catColor,
-                            border: `1px solid ${catColor}30`,
-                          }}
-                        >
-                          {note.category}
+                        <div className="note-badge-group">
+                          <span
+                            className="category-badge"
+                            style={{
+                              backgroundColor: `${catColor}15`,
+                              color: catColor,
+                              border: `1px solid ${catColor}30`,
+                            }}
+                          >
+                            {note.category}
+                          </span>
+                          {note.isPinned && (
+                            <span className="pinned-badge" title="This note is pinned to the top for quick access">
+                              <Pin size={10} fill="currentColor" /> Pinned
+                            </span>
+                          )}
+                        </div>
+
+                        <span className="note-date" title={`Last modified: ${formatFullDateTime(note.updatedAt)}`}>
+                          <Clock3 size={11} className="date-clock-icon" />
+                          {formatLastUpdated(note.updatedAt)}
                         </span>
-                        <span className="note-date">{dateLabel(note.updatedAt)}</span>
 
                         <div className="note-actions-inline" onClick={(e) => e.stopPropagation()}>
                           {!note.isTrashed ? (
                             <>
+                              <button
+                                className={`action-btn-pin ${note.isPinned ? 'pinned' : ''}`}
+                                onClick={(e) => handleTogglePin(e, note)}
+                                title={note.isPinned ? 'Unpin note' : 'Pin note to top'}
+                              >
+                                <Pin
+                                  size={14}
+                                  fill={note.isPinned ? 'currentColor' : 'none'}
+                                />
+                              </button>
                               <button
                                 className={`action-btn-star ${note.isFavorite ? 'starred' : ''}`}
                                 onClick={(e) => handleToggleFavorite(e, note)}

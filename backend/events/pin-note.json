@@ -1,0 +1,9 @@
+{
+  "httpMethod": "PUT",
+  "headers": {
+    "Authorization": "Bearer PASTE_TOKEN_HERE"
+  },
+  "pathParameters": {
+    "id": "PASTE_NOTE_ID_HERE"
+  }
+}

@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   ArrowRight,
   CheckCircle2,
+  Clock3,
   Download,
   ExternalLink,
   Eye,
   FileText,
   Image as ImageIcon,
   Paperclip,
+  Pin,
   Plus,
   RefreshCw,
   Star,
@@ -44,6 +46,7 @@ export default function NoteEditor({
       tags: [],
       attachments: [],
       isFavorite: false,
+      isPinned: false,
     }
   )
 
@@ -195,6 +198,7 @@ export default function NoteEditor({
 
     onSave({
       ...draft,
+      isPinned: Boolean(draft.isPinned),
       tags: parsedTags,
       attachments: attachments,
     })
@@ -224,8 +228,24 @@ export default function NoteEditor({
           <div>
             <p className="eyebrow">{note?.id ? 'Edit note' : 'New note'}</p>
             <h2>{note?.id ? 'Refine your thought' : 'Capture a fresh idea'}</h2>
+            {note?.updatedAt && (
+              <p className="editor-last-updated text-xs text-stone-500 mt-1 flex items-center gap-1.5 font-medium">
+                <Clock3 size={12} className="inline opacity-70" />
+                <span>
+                  Last modified: {new Date(note.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(note.updatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                </span>
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={`pin-action ${draft.isPinned ? 'pinned' : ''}`}
+              onClick={() => setDraft((d) => ({ ...d, isPinned: !d.isPinned }))}
+              title={draft.isPinned ? 'Unpin note' : 'Pin note to top'}
+            >
+              <Pin size={18} fill={draft.isPinned ? 'currentColor' : 'none'} />
+            </button>
             <button
               type="button"
               className={`star-action ${draft.isFavorite ? 'starred' : ''}`}

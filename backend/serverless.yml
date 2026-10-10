@@ -151,6 +151,13 @@ functions:
           path: /api/notes
           method: get
 
+  notesSearch:
+    handler: src/handlers/notes.search
+    events:
+      - httpApi:
+          path: /api/notes/search
+          method: get
+
   notesStats:
     handler: src/handlers/notes.stats
     events:
@@ -177,6 +184,13 @@ functions:
     events:
       - httpApi:
           path: /api/notes/{id}
+          method: put
+
+  notesTogglePin:
+    handler: src/handlers/notes.togglePin
+    events:
+      - httpApi:
+          path: /api/notes/{id}/pin
           method: put
 
   notesToggleFavorite:

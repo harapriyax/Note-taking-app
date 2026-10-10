@@ -15,6 +15,27 @@ module.exports.list = async (event) => {
   return success({ success: true, notes });
 };
 
+// GET /api/notes/search
+module.exports.search = async (event) => {
+  if (event.httpMethod === 'OPTIONS') return success({});
+
+  const userId = getUserId(event);
+  if (!userId) return error('Unauthorized', 401);
+
+  const params = event.queryStringParameters || {};
+  const queryText = params.q || params.query || params.search || '';
+  const { category, trashed } = params;
+
+  const notes = await Note.search(userId, queryText, { category, trashed });
+
+  return success({
+    success: true,
+    query: queryText,
+    count: notes.length,
+    notes,
+  });
+};
+
 // GET /api/notes/stats
 module.exports.stats = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
@@ -47,7 +68,7 @@ module.exports.create = async (event) => {
   const userId = getUserId(event);
   if (!userId) return error('Unauthorized', 401);
 
-  const { title, content, tags, category, color, attachments } = parseBody(event);
+  const { title, content, tags, category, color, attachments, isFavorite, isPinned } = parseBody(event);
 
   const note = await Note.create({
     userId,
@@ -58,6 +79,8 @@ module.exports.create = async (event) => {
     category,
     color,
     attachments: Array.isArray(attachments) ? attachments : [],
+    isFavorite,
+    isPinned,
   });
 
   return success({ success: true, note }, 201);
@@ -81,11 +104,27 @@ module.exports.update = async (event) => {
   if (body.color !== undefined) updates.color = body.color;
   if (body.attachments !== undefined) updates.attachments = body.attachments;
   if (body.isFavorite !== undefined) updates.isFavorite = body.isFavorite;
+  if (body.isPinned !== undefined) updates.isPinned = body.isPinned;
   if (body.isTrashed !== undefined) updates.isTrashed = body.isTrashed;
 
   const note = await Note.update(userId, noteId, updates);
   if (!note) return error('Note not found', 404);
 
+  return success({ success: true, note });
+};
+
+// PUT /api/notes/{id}/pin
+module.exports.togglePin = async (event) => {
+  if (event.httpMethod === 'OPTIONS') return success({});
+
+  const userId = getUserId(event);
+  if (!userId) return error('Unauthorized', 401);
+
+  const noteId = event.pathParameters?.id;
+  const existing = await Note.getById(userId, noteId);
+  if (!existing) return error('Note not found', 404);
+
+  const note = await Note.update(userId, noteId, { isPinned: !existing.isPinned });
   return success({ success: true, note });
 };
 

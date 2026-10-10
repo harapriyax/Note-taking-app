@@ -138,14 +138,27 @@ serverless invoke local -f notesStats --path events/notes-stats.json
 
 
 # ══════════════════════════════════════════════
-#  15. GET PRESIGNED S3 UPLOAD URL (Requires token)
+#  15. SEARCH NOTES (Requires token + q parameter)
+# ══════════════════════════════════════════════
+serverless invoke local -f notesSearch --path events/search-notes.json
+
+
+# ══════════════════════════════════════════════
+#  16. PIN / UNPIN NOTE (Requires token + noteId)
+# ══════════════════════════════════════════════
+serverless invoke local -f notesTogglePin --path events/pin-note.json
+
+
+# ══════════════════════════════════════════════
+#  17. GET PRESIGNED S3 UPLOAD URL (Requires token)
 #      Generates secure S3 upload URL for images/attachments
 # ══════════════════════════════════════════════
 serverless invoke local -f uploadsPresignedUrl --path events/upload-file.json
 
 
 # ══════════════════════════════════════════════
-#  16. DELETE NOTE (Requires token + noteId)
+#  18. DELETE NOTE (Requires token + noteId)
 #      Put noteId into events/delete-note.json first
 # ══════════════════════════════════════════════
 serverless invoke local -f notesDelete --path events/delete-note.json
+

@@ -807,9 +807,126 @@
   background: #E8F7F6;
 }
 
+/* Pinned Note Animations & Enhanced Aesthetics */
+@keyframes pinDropBounce {
+  0% {
+    transform: translateY(-8px) scale(1.22) rotate(-48deg);
+    opacity: 0.7;
+  }
+  45% {
+    transform: translateY(2px) scale(0.9) rotate(-26deg);
+  }
+  75% {
+    transform: translateY(-2px) scale(1.06) rotate(-32deg);
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(-30deg);
+    opacity: 1;
+  }
+}
+
+@keyframes pinPulseGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgba(245, 158, 11, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
+@keyframes badgePop {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.7);
+  }
+  60% {
+    transform: translateY(1px) scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pinBarShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes cardPinnedHighlight {
+  0% {
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.4), 0 8px 24px rgba(245, 158, 11, 0.16);
+    transform: translateY(-3px) scale(1.01);
+  }
+  100% {
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.08);
+    transform: translateY(0) scale(1);
+  }
+}
+
+.note-card.is-pinned {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: linear-gradient(180deg, #fffdf8 0%, #ffffff 100%);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.08);
+  animation: cardPinnedHighlight 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.note-card.is-pinned::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #f59e0b 0%, #fde68a 50%, #f59e0b 100%);
+  background-size: 200% 100%;
+  animation: pinBarShimmer 4s linear infinite;
+  border-top-left-radius: var(--radius-md);
+  border-top-right-radius: var(--radius-md);
+}
+
+.note-badge-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.pinned-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3.5px;
+  padding: 2.5px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #B45309;
+  background: linear-gradient(110deg, #FEF3C7 0%, #FFFBEB 45%, #FEF3C7 90%);
+  background-size: 200% 100%;
+  border: 1px solid #FDE68A;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.12);
+  animation: badgePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), pinBarShimmer 5s ease-in-out infinite;
+}
+
 .note-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 11px;
   color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.date-clock-icon {
+  opacity: 0.65;
 }
 
 .note-actions-inline {
@@ -819,6 +936,7 @@
   gap: 3px;
 }
 
+.action-btn-pin,
 .action-btn-star,
 .action-btn-trash,
 .action-btn-delete {
@@ -831,7 +949,121 @@
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.action-btn-pin:hover {
+  background: #FEF3C7;
+  color: #D97706;
+  transform: scale(1.15) rotate(-10deg);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.15);
+}
+
+.action-btn-pin:active {
+  transform: scale(0.85);
+  transition-duration: 0.08s;
+}
+
+.action-btn-pin.pinned {
+  color: #D97706;
+  background: #FEF3C7;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  animation: pinPulseGlow 0.8s ease-out;
+}
+
+.action-btn-pin.pinned svg {
+  animation: pinDropBounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pin-action {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pin-action:hover {
+  background: #FEF3C7;
+  border-color: #FDE68A;
+  color: #D97706;
+  transform: scale(1.1) rotate(-12deg);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.18);
+}
+
+.pin-action:active {
+  transform: scale(0.88);
+  transition-duration: 0.08s;
+}
+
+.pin-action.pinned {
+  background: #FEF3C7;
+  border-color: #F59E0B;
+  color: #D97706;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35);
+  animation: pinPulseGlow 0.8s ease-out;
+}
+
+.pin-action.pinned svg {
+  animation: pinDropBounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Search Status Feedback Banner */
+.search-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  margin-bottom: 14px;
+  background: #FFF7ED;
+  border: 1px solid #FED7AA;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: #9A3412;
+}
+
+.search-status-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.search-status-icon {
+  color: #EA580C;
+  flex-shrink: 0;
+}
+
+.search-status-loading {
+  font-size: 11px;
+  color: #C2410C;
+  font-style: italic;
+}
+
+.search-status-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: #FFEDD5;
+  border: 1px solid #FDBA74;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #C2410C;
+  cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.search-status-clear:hover {
+  background: #FED7AA;
+  color: #9A3412;
 }
 
 .action-btn-star:hover {
