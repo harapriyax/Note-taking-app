@@ -478,7 +478,7 @@ export default function DashboardPage({ session, onLogout }) {
     const updated = !note.isPinned
     setNotes((prev) =>
       prev.map((n) =>
-        n.id === note.id ? { ...n, isPinned: updated, updatedAt: new Date().toISOString() } : n
+        n.id === note.id ? { ...n, isPinned: updated } : n
       )
     )
     showToast(updated ? 'Note pinned to top' : 'Note unpinned')
@@ -499,7 +499,7 @@ export default function DashboardPage({ session, onLogout }) {
     const updated = !note.isFavorite
     setNotes((prev) =>
       prev.map((n) =>
-        n.id === note.id ? { ...n, isFavorite: updated, updatedAt: new Date().toISOString() } : n
+        n.id === note.id ? { ...n, isFavorite: updated } : n
       )
     )
     showToast(updated ? 'Added to favorites' : 'Removed from favorites')
@@ -518,7 +518,7 @@ export default function DashboardPage({ session, onLogout }) {
   const handleTrashNote = async (note) => {
     setNotes((prev) =>
       prev.map((n) =>
-        n.id === note.id ? { ...n, isTrashed: true, updatedAt: new Date().toISOString() } : n
+        n.id === note.id ? { ...n, isTrashed: true } : n
       )
     )
     if (editor?.id === note.id) setEditor(null)
@@ -539,7 +539,7 @@ export default function DashboardPage({ session, onLogout }) {
     e.stopPropagation()
     setNotes((prev) =>
       prev.map((n) =>
-        n.id === note.id ? { ...n, isTrashed: false, updatedAt: new Date().toISOString() } : n
+        n.id === note.id ? { ...n, isTrashed: false } : n
       )
     )
     showToast('Note restored from trash')

@@ -129,7 +129,15 @@ const Note = {
     const note = await Note.getById(userId, noteId);
     if (!note) return null;
 
-    const merged = { ...note, ...updates, updatedAt: new Date().toISOString() };
+    // Only bump updatedAt for actual content edits, not metadata toggles (pin/favorite/trash)
+    const metadataOnlyKeys = ['isPinned', 'isFavorite', 'isTrashed'];
+    const isContentEdit = Object.keys(updates).some(key => !metadataOnlyKeys.includes(key));
+
+    const merged = {
+      ...note,
+      ...updates,
+      updatedAt: isContentEdit ? new Date().toISOString() : note.updatedAt,
+    };
     // Don't allow userId/noteId to be overwritten
     merged.userId = userId;
     merged.noteId = noteId;
