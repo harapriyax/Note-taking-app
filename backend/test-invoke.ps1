@@ -15,7 +15,6 @@
 #      $env:USER_POOL_ID        = "ap-south-1_1eKLRoE99"
 #      $env:USER_POOL_CLIENT_ID = "3urdmjqnlb9d0jjj6ojmd9jl0c"
 #      $env:ATTACHMENTS_BUCKET  = "noteflow-attachments-live-370835059417"
-#      $env:JWT_SECRET           = "noteflow-jwt-secret-change-me-to-random-string"
 #      $env:USERS_TABLE          = "noteflow-api-users-live"
 #      $env:NOTES_TABLE          = "noteflow-api-notes-live"
 #      $env:TASKS_TABLE          = "noteflow-api-tasks-live"

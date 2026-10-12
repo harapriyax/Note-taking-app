@@ -1,7 +1,7 @@
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { v4: uuidv4 } = require('uuid');
-const { success, error, parseBody, getUserId } = require('../lib/response');
+const { success, error, parseBody, getCognitoId } = require('../lib/response');
 
 const REGION = process.env.AWS_REGION || 'ap-south-1';
 const BUCKET_NAME = process.env.ATTACHMENTS_BUCKET || `noteflow-attachments-${process.env.STAGE || 'live'}`;
@@ -30,8 +30,8 @@ function sanitizeFileName(fileName) {
 module.exports.getPresignedUrl = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const body = parseBody(event);
   const files = Array.isArray(body.files) ? body.files : (body.fileName ? [body] : []);
@@ -63,7 +63,7 @@ module.exports.getPresignedUrl = async (event) => {
 
     const fileId = uuidv4();
     const cleanName = sanitizeFileName(fileName);
-    const s3Key = `attachments/${userId}/${fileId}-${cleanName}`;
+    const s3Key = `attachments/${cognitoId}/${fileId}-${cleanName}`;
 
     try {
       const command = new PutObjectCommand({

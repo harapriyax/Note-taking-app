@@ -13,20 +13,20 @@ const User = {
     return result.Items?.[0] || null;
   },
 
-  async findById(userId) {
+  async findById(cognitoId) {
     const result = await dynamodb.send(new GetCommand({
       TableName: TABLES.USERS,
-      Key: { userId },
+      Key: { cognitoId },
     }));
     return result.Item || null;
   },
 
-  async create({ userId, fullName, email, passwordHash = null }) {
+  async create({ cognitoId, fullName, email }) {
     const user = {
-      userId,
+      cognitoId,
       fullName: fullName || email.split('@')[0],
       email: email.toLowerCase().trim(),
-      ...(passwordHash ? { passwordHash } : {}),
+      userType: 'member',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -37,8 +37,8 @@ const User = {
     return user;
   },
 
-  async update(userId, updates) {
-    const user = await User.findById(userId);
+  async update(cognitoId, updates) {
+    const user = await User.findById(cognitoId);
     if (!user) return null;
 
     const merged = { ...user, ...updates, updatedAt: new Date().toISOString() };
@@ -49,11 +49,18 @@ const User = {
     return merged;
   },
 
-  // Strip sensitive fields before returning to client
+  // Return only safe, client-facing fields
   safe(user) {
     if (!user) return null;
-    const { passwordHash, ...safe } = user;
-    return safe;
+    return {
+      cognitoId: user.cognitoId,
+      fullName: user.fullName,
+      email: user.email,
+      userType: user.userType,
+      displayName: user.fullName || user.email?.split('@')[0] || 'User',
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
   },
 };
 

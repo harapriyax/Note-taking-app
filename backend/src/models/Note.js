@@ -2,11 +2,11 @@ const { dynamodb, TABLES } = require('../lib/dynamodb');
 const { GetCommand, PutCommand, DeleteCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
 
 const Note = {
-  async listByUser(userId, filters = {}) {
+  async listByUser(cognitoId, filters = {}) {
     const result = await dynamodb.send(new QueryCommand({
       TableName: TABLES.NOTES,
-      KeyConditionExpression: 'userId = :uid',
-      ExpressionAttributeValues: { ':uid': userId },
+      KeyConditionExpression: 'cognitoId = :uid',
+      ExpressionAttributeValues: { ':uid': cognitoId },
     }));
 
     let notes = result.Items || [];
@@ -49,15 +49,15 @@ const Note = {
     return notes;
   },
 
-  async search(userId, queryText, filters = {}) {
+  async search(cognitoId, queryText, filters = {}) {
     if (!queryText || typeof queryText !== 'string' || !queryText.trim()) {
-      return this.listByUser(userId, filters);
+      return this.listByUser(cognitoId, filters);
     }
 
     const result = await dynamodb.send(new QueryCommand({
       TableName: TABLES.NOTES,
-      KeyConditionExpression: 'userId = :uid',
-      ExpressionAttributeValues: { ':uid': userId },
+      KeyConditionExpression: 'cognitoId = :uid',
+      ExpressionAttributeValues: { ':uid': cognitoId },
     }));
 
     let notes = result.Items || [];
@@ -94,17 +94,17 @@ const Note = {
     return notes;
   },
 
-  async getById(userId, noteId) {
+  async getById(cognitoId, noteId) {
     const result = await dynamodb.send(new GetCommand({
       TableName: TABLES.NOTES,
-      Key: { userId, noteId },
+      Key: { cognitoId, noteId },
     }));
     return result.Item || null;
   },
 
   async create(noteData) {
     const note = {
-      userId: noteData.userId,
+      cognitoId: noteData.cognitoId,
       noteId: noteData.noteId,
       title: noteData.title || 'Untitled Note',
       content: noteData.content || '',
@@ -125,8 +125,8 @@ const Note = {
     return note;
   },
 
-  async update(userId, noteId, updates) {
-    const note = await Note.getById(userId, noteId);
+  async update(cognitoId, noteId, updates) {
+    const note = await Note.getById(cognitoId, noteId);
     if (!note) return null;
 
     // Only bump updatedAt for actual content edits, not metadata toggles (pin/favorite/trash)
@@ -138,8 +138,8 @@ const Note = {
       ...updates,
       updatedAt: isContentEdit ? new Date().toISOString() : note.updatedAt,
     };
-    // Don't allow userId/noteId to be overwritten
-    merged.userId = userId;
+    // Don't allow cognitoId/noteId to be overwritten
+    merged.cognitoId = cognitoId;
     merged.noteId = noteId;
 
     await dynamodb.send(new PutCommand({
@@ -149,16 +149,16 @@ const Note = {
     return merged;
   },
 
-  async delete(userId, noteId) {
+  async delete(cognitoId, noteId) {
     await dynamodb.send(new DeleteCommand({
       TableName: TABLES.NOTES,
-      Key: { userId, noteId },
+      Key: { cognitoId, noteId },
     }));
     return true;
   },
 
-  async getStats(userId) {
-    const allNotes = await Note.listByUser(userId, { trashed: 'all' });
+  async getStats(cognitoId) {
+    const allNotes = await Note.listByUser(cognitoId, { trashed: 'all' });
     const activeNotes = allNotes.filter(n => !n.isTrashed);
 
     return {

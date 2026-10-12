@@ -12,8 +12,8 @@
 #      cd "c:\New folder\Note-taking-app\backend"
 #
 # 2. Set your environment variables (run once per terminal session):
-#      $env:USER_POOL_ID        = "ap-south-1_1eKLRoE99"
-#      $env:USER_POOL_CLIENT_ID = "3urdmjqnlb9d0jjj6ojmd9jl0c"
+#      $env:USER_POOL_ID        = "ap-south-1_xBtur9Qg5"
+#      $env:USER_POOL_CLIENT_ID = "10kaf2ifc58ed5r2dibb2ujqra"
 #      $env:ATTACHMENTS_BUCKET  = "noteflow-attachments-live-370835059417"
 #      $env:JWT_SECRET           = "noteflow-jwt-secret-change-me-to-random-string"
 #      $env:USERS_TABLE          = "noteflow-api-users-live"

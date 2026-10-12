@@ -2,11 +2,11 @@ const { dynamodb, TABLES } = require('../lib/dynamodb');
 const { GetCommand, PutCommand, DeleteCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
 
 const Category = {
-  async listByUser(userId) {
+  async listByUser(cognitoId) {
     const result = await dynamodb.send(new QueryCommand({
       TableName: TABLES.CATEGORIES,
-      KeyConditionExpression: 'userId = :uid',
-      ExpressionAttributeValues: { ':uid': userId },
+      KeyConditionExpression: 'cognitoId = :uid',
+      ExpressionAttributeValues: { ':uid': cognitoId },
     }));
 
     let cats = result.Items || [];
@@ -16,7 +16,7 @@ const Category = {
 
   async create(catData) {
     const cat = {
-      userId: catData.userId,
+      cognitoId: catData.cognitoId,
       categoryId: catData.categoryId,
       name: catData.name,
       color: catData.color || '#e07a4a',
@@ -29,10 +29,10 @@ const Category = {
     return cat;
   },
 
-  async remove(userId, categoryId) {
+  async remove(cognitoId, categoryId) {
     await dynamodb.send(new DeleteCommand({
       TableName: TABLES.CATEGORIES,
-      Key: { userId, categoryId },
+      Key: { cognitoId, categoryId },
     }));
     return true;
   },

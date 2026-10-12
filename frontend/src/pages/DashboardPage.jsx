@@ -211,8 +211,8 @@ export default function DashboardPage({ session, onLogout }) {
   const [isLoading, setIsLoading] = useState(isCloud)
   const [toast, setToast] = useState(null)
 
-  const user = session?.user || { fullName: 'User' }
-  const firstName = user.fullName?.split(' ')[0] || 'User'
+  const user = session?.user || { displayName: 'User', fullName: 'User' }
+  const firstName = user.displayName?.split(' ')[0] || user.fullName?.split(' ')[0] || 'User'
 
   // Cloud Notes Fetch from AWS DynamoDB — runs once on mount for cloud users
   useEffect(() => {

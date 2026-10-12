@@ -2,11 +2,11 @@ const { dynamodb, TABLES } = require('../lib/dynamodb');
 const { GetCommand, PutCommand, DeleteCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
 
 const Task = {
-  async listByUser(userId) {
+  async listByUser(cognitoId) {
     const result = await dynamodb.send(new QueryCommand({
       TableName: TABLES.TASKS,
-      KeyConditionExpression: 'userId = :uid',
-      ExpressionAttributeValues: { ':uid': userId },
+      KeyConditionExpression: 'cognitoId = :uid',
+      ExpressionAttributeValues: { ':uid': cognitoId },
     }));
 
     let tasks = result.Items || [];
@@ -15,17 +15,17 @@ const Task = {
     return tasks;
   },
 
-  async getById(userId, taskId) {
+  async getById(cognitoId, taskId) {
     const result = await dynamodb.send(new GetCommand({
       TableName: TABLES.TASKS,
-      Key: { userId, taskId },
+      Key: { cognitoId, taskId },
     }));
     return result.Item || null;
   },
 
   async create(taskData) {
     const task = {
-      userId: taskData.userId,
+      cognitoId: taskData.cognitoId,
       taskId: taskData.taskId,
       text: taskData.text || '',
       priority: taskData.priority || 'Medium',
@@ -40,8 +40,8 @@ const Task = {
     return task;
   },
 
-  async update(userId, taskId, updates) {
-    const existing = await Task.getById(userId, taskId);
+  async update(cognitoId, taskId, updates) {
+    const existing = await Task.getById(cognitoId, taskId);
     if (!existing) return null;
 
     const merged = { ...existing, ...updates, updatedAt: new Date().toISOString() };
@@ -52,10 +52,10 @@ const Task = {
     return merged;
   },
 
-  async remove(userId, taskId) {
+  async remove(cognitoId, taskId) {
     await dynamodb.send(new DeleteCommand({
       TableName: TABLES.TASKS,
-      Key: { userId, taskId },
+      Key: { cognitoId, taskId },
     }));
     return true;
   },

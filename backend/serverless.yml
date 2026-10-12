@@ -18,23 +18,10 @@ provider:
     NOTES_TABLE: ${self:service}-notes-${self:provider.stage}
     TASKS_TABLE: ${self:service}-tasks-${self:provider.stage}
     CATEGORIES_TABLE: ${self:service}-categories-${self:provider.stage}
-    JWT_SECRET: ${env:JWT_SECRET, 'noteflow-jwt-secret-change-me'}
     USER_POOL_ID: !Ref CognitoUserPool
     USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
+    IDENTITY_POOL_ID: !Ref CognitoIdentityPool
     ATTACHMENTS_BUCKET: ${self:custom.attachmentsBucket}
-  httpApi:
-    cors:
-      allowedOrigins:
-        - '*'
-      allowedHeaders:
-        - Content-Type
-        - Authorization
-      allowedMethods:
-        - GET
-        - POST
-        - PUT
-        - DELETE
-        - OPTIONS
   iam:
     role:
       statements:
@@ -55,19 +42,11 @@ provider:
             - Fn::GetAtt: [CategoriesTable, Arn]
         - Effect: Allow
           Action:
-            - cognito-idp:SignUp
-            - cognito-idp:ConfirmSignUp
-            - cognito-idp:ResendConfirmationCode
-            - cognito-idp:InitiateAuth
-            - cognito-idp:AdminInitiateAuth
-            - cognito-idp:ForgotPassword
-            - cognito-idp:ConfirmForgotPassword
             - cognito-idp:AdminGetUser
             - cognito-idp:AdminUpdateUserAttributes
-            - cognito-idp:AdminSetUserPassword
-            - cognito-idp:GetUser
+            - cognito-idp:ListUsers
           Resource:
-            - !GetAtt CognitoUserPool.Arn
+            - Fn::Sub: "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
         - Effect: Allow
           Action:
             - s3:PutObject
@@ -78,217 +57,225 @@ provider:
             - !Join ['', ['arn:aws:s3:::', '${self:custom.attachmentsBucket}', '/*']]
 
 functions:
-  # ──── Auth ────
-  authSignup:
-    handler: src/handlers/auth.signup
-    events:
-      - httpApi:
-          path: /api/auth/signup
-          method: post
-
-  authConfirmSignup:
-    handler: src/handlers/auth.confirmSignup
-    events:
-      - httpApi:
-          path: /api/auth/confirm-signup
-          method: post
-
-  authResendCode:
-    handler: src/handlers/auth.resendCode
-    events:
-      - httpApi:
-          path: /api/auth/resend-code
-          method: post
-
-  authLogin:
-    handler: src/handlers/auth.login
-    events:
-      - httpApi:
-          path: /api/auth/login
-          method: post
-
-  authForgotPassword:
-    handler: src/handlers/auth.forgotPassword
-    events:
-      - httpApi:
-          path: /api/auth/forgot-password
-          method: post
-
-  authResetPassword:
-    handler: src/handlers/auth.resetPassword
-    events:
-      - httpApi:
-          path: /api/auth/reset-password
-          method: post
-
+  # ──── Auth (PROTECTED — IAM authorizer) ────
   authMe:
     handler: src/handlers/auth.getMe
     events:
-      - httpApi:
+      - http:
           path: /api/auth/me
           method: get
+          cors: true
+          authorizer: aws_iam
 
   authProfile:
     handler: src/handlers/auth.updateProfile
     events:
-      - httpApi:
+      - http:
           path: /api/auth/profile
           method: put
+          cors: true
+          authorizer: aws_iam
 
-  # ──── Uploads (S3 Attachments) ────
+  # ──── PostConfirmation Trigger (invoked by CognitoUserPool LambdaConfig) ────
+  postConfirmation:
+    handler: src/handlers/auth.postConfirmation
+
+  # ──── Uploads (PROTECTED) ────
   uploadsPresignedUrl:
     handler: src/handlers/uploads.getPresignedUrl
     events:
-      - httpApi:
+      - http:
           path: /api/uploads/presigned-url
           method: post
+          cors: true
+          authorizer: aws_iam
 
-  # ──── Notes ────
+  # ──── Notes (PROTECTED) ────
   notesList:
     handler: src/handlers/notes.list
     events:
-      - httpApi:
+      - http:
           path: /api/notes
           method: get
+          cors: true
+          authorizer: aws_iam
 
   notesSearch:
     handler: src/handlers/notes.search
     events:
-      - httpApi:
+      - http:
           path: /api/notes/search
           method: get
+          cors: true
+          authorizer: aws_iam
 
   notesStats:
     handler: src/handlers/notes.stats
     events:
-      - httpApi:
+      - http:
           path: /api/notes/stats
           method: get
+          cors: true
+          authorizer: aws_iam
 
   notesGetById:
     handler: src/handlers/notes.getById
     events:
-      - httpApi:
+      - http:
           path: /api/notes/{id}
           method: get
+          cors: true
+          authorizer: aws_iam
 
   notesCreate:
     handler: src/handlers/notes.create
     events:
-      - httpApi:
+      - http:
           path: /api/notes
           method: post
+          cors: true
+          authorizer: aws_iam
 
   notesUpdate:
     handler: src/handlers/notes.update
     events:
-      - httpApi:
+      - http:
           path: /api/notes/{id}
           method: put
+          cors: true
+          authorizer: aws_iam
 
   notesTogglePin:
     handler: src/handlers/notes.togglePin
     events:
-      - httpApi:
+      - http:
           path: /api/notes/{id}/pin
           method: put
+          cors: true
+          authorizer: aws_iam
 
   notesToggleFavorite:
     handler: src/handlers/notes.toggleFavorite
     events:
-      - httpApi:
+      - http:
           path: /api/notes/{id}/favorite
           method: put
+          cors: true
+          authorizer: aws_iam
 
   notesTrash:
     handler: src/handlers/notes.trash
     events:
-      - httpApi:
+      - http:
           path: /api/notes/{id}/trash
           method: put
+          cors: true
+          authorizer: aws_iam
 
   notesRestore:
     handler: src/handlers/notes.restore
     events:
-      - httpApi:
+      - http:
           path: /api/notes/{id}/restore
           method: put
+          cors: true
+          authorizer: aws_iam
 
   notesDelete:
     handler: src/handlers/notes.remove
     events:
-      - httpApi:
+      - http:
           path: /api/notes/{id}
           method: delete
+          cors: true
+          authorizer: aws_iam
 
-  # ──── Tasks ────
+  # ──── Tasks (PROTECTED) ────
   tasksList:
     handler: src/handlers/tasks.list
     events:
-      - httpApi:
+      - http:
           path: /api/tasks
           method: get
+          cors: true
+          authorizer: aws_iam
 
   tasksCreate:
     handler: src/handlers/tasks.create
     events:
-      - httpApi:
+      - http:
           path: /api/tasks
           method: post
+          cors: true
+          authorizer: aws_iam
 
   tasksUpdate:
     handler: src/handlers/tasks.update
     events:
-      - httpApi:
+      - http:
           path: /api/tasks/{id}
           method: put
+          cors: true
+          authorizer: aws_iam
 
   tasksToggle:
     handler: src/handlers/tasks.toggle
     events:
-      - httpApi:
+      - http:
           path: /api/tasks/{id}/toggle
           method: put
+          cors: true
+          authorizer: aws_iam
 
   tasksDelete:
     handler: src/handlers/tasks.remove
     events:
-      - httpApi:
+      - http:
           path: /api/tasks/{id}
           method: delete
+          cors: true
+          authorizer: aws_iam
 
-  # ──── Categories ────
+  # ──── Categories (PROTECTED) ────
   categoriesList:
     handler: src/handlers/categories.list
     events:
-      - httpApi:
+      - http:
           path: /api/categories
           method: get
+          cors: true
+          authorizer: aws_iam
 
   categoriesCreate:
     handler: src/handlers/categories.create
     events:
-      - httpApi:
+      - http:
           path: /api/categories
           method: post
+          cors: true
+          authorizer: aws_iam
 
   categoriesDelete:
     handler: src/handlers/categories.remove
     events:
-      - httpApi:
+      - http:
           path: /api/categories/{id}
           method: delete
+          cors: true
+          authorizer: aws_iam
 
-  # ──── Health ────
+  # ──── Health (PUBLIC) ────
   health:
     handler: src/handlers/health.check
     events:
-      - httpApi:
+      - http:
           path: /api/health
           method: get
+          cors: true
 
 resources:
   Resources:
+    # ──── Cognito User Pool ────
     CognitoUserPool:
       Type: AWS::Cognito::UserPool
       Properties:
@@ -324,9 +311,58 @@ resources:
           - ALLOW_USER_PASSWORD_AUTH
           - ALLOW_REFRESH_TOKEN_AUTH
           - ALLOW_USER_SRP_AUTH
-          - ALLOW_ADMIN_USER_PASSWORD_AUTH
         PreventUserExistenceErrors: ENABLED
 
+    # ──── Cognito Identity Pool (Federated Identities) ────
+    CognitoIdentityPool:
+      Type: AWS::Cognito::IdentityPool
+      Properties:
+        IdentityPoolName: noteflow_identity_pool_${self:provider.stage}
+        AllowUnauthenticatedIdentities: false
+        CognitoIdentityProviders:
+          - ClientId: !Ref CognitoUserPoolClient
+            ProviderName:
+              Fn::GetAtt: [CognitoUserPool, ProviderName]
+
+    # ──── IAM Role for Authenticated Users ────
+    CognitoAuthRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: noteflow-cognito-auth-${self:provider.stage}
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Federated: cognito-identity.amazonaws.com
+              Action: sts:AssumeRoleWithWebIdentity
+              Condition:
+                StringEquals:
+                  cognito-identity.amazonaws.com:aud: !Ref CognitoIdentityPool
+                ForAnyValue:StringLike:
+                  cognito-identity.amazonaws.com:amr: authenticated
+        Policies:
+          - PolicyName: CognitoAuthPolicy
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - execute-api:Invoke
+                  Resource:
+                    - Fn::Sub: "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*"
+
+    # ──── Attach Roles to Identity Pool ────
+    IdentityPoolRoleAttachment:
+      Type: AWS::Cognito::IdentityPoolRoleAttachment
+      Properties:
+        IdentityPoolId: !Ref CognitoIdentityPool
+        Roles:
+          authenticated: !GetAtt CognitoAuthRole.Arn
+
+
+
+    # ──── S3 Buckets ────
     AttachmentsBucket:
       Type: AWS::S3::Bucket
       Properties:
@@ -362,18 +398,19 @@ resources:
               Resource:
                 - !Join ['', ['arn:aws:s3:::', !Ref AttachmentsBucket, '/attachments/*']]
 
+    # ──── DynamoDB Tables ────
     UsersTable:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: ${self:provider.environment.USERS_TABLE}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
-          - AttributeName: userId
+          - AttributeName: cognitoId
             AttributeType: S
           - AttributeName: email
             AttributeType: S
         KeySchema:
-          - AttributeName: userId
+          - AttributeName: cognitoId
             KeyType: HASH
         GlobalSecondaryIndexes:
           - IndexName: EmailIndex
@@ -389,12 +426,12 @@ resources:
         TableName: ${self:provider.environment.NOTES_TABLE}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
-          - AttributeName: userId
+          - AttributeName: cognitoId
             AttributeType: S
           - AttributeName: noteId
             AttributeType: S
         KeySchema:
-          - AttributeName: userId
+          - AttributeName: cognitoId
             KeyType: HASH
           - AttributeName: noteId
             KeyType: RANGE
@@ -405,12 +442,12 @@ resources:
         TableName: ${self:provider.environment.TASKS_TABLE}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
-          - AttributeName: userId
+          - AttributeName: cognitoId
             AttributeType: S
           - AttributeName: taskId
             AttributeType: S
         KeySchema:
-          - AttributeName: userId
+          - AttributeName: cognitoId
             KeyType: HASH
           - AttributeName: taskId
             KeyType: RANGE
@@ -421,27 +458,58 @@ resources:
         TableName: ${self:provider.environment.CATEGORIES_TABLE}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
-          - AttributeName: userId
+          - AttributeName: cognitoId
             AttributeType: S
           - AttributeName: categoryId
             AttributeType: S
         KeySchema:
-          - AttributeName: userId
+          - AttributeName: cognitoId
             KeyType: HASH
           - AttributeName: categoryId
             KeyType: RANGE
 
+    # ──── CORS: Gateway Response for 4xx (needed for REST API IAM + CORS) ────
+    GatewayResponseDefault4XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseType: DEFAULT_4XX
+        RestApiId: !Ref ApiGatewayRestApi
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+
+    GatewayResponseDefault5XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseType: DEFAULT_5XX
+        RestApiId: !Ref ApiGatewayRestApi
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+
   Outputs:
     ApiUrl:
-      Description: URL of the API Gateway
+      Description: URL of the REST API Gateway
       Value:
-        Fn::GetAtt: [HttpApi, ApiEndpoint]
+        Fn::Join:
+          - ''
+          - - 'https://'
+            - !Ref ApiGatewayRestApi
+            - '.execute-api.'
+            - !Ref AWS::Region
+            - '.amazonaws.com/'
+            - ${self:provider.stage}
     UserPoolId:
       Description: Cognito User Pool ID
       Value: !Ref CognitoUserPool
     UserPoolClientId:
       Description: Cognito User Pool Client ID
       Value: !Ref CognitoUserPoolClient
+    IdentityPoolId:
+      Description: Cognito Identity Pool ID
+      Value: !Ref CognitoIdentityPool
     AttachmentsBucketName:
       Description: S3 Attachments Bucket Name
       Value: !Ref AttachmentsBucket

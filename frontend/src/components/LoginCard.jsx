@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import {
+  signIn,
+  signUp,
+  confirmSignUp,
+  resendSignUpCode,
+  resetPassword,
+  confirmResetPassword,
+} from 'aws-amplify/auth'
+import {
   ArrowLeft,
   ArrowRight,
   Check,
@@ -13,7 +21,6 @@ import {
   ShieldCheck,
   UserRound,
 } from 'lucide-react'
-import { api } from '../lib/api'
 
 export default function LoginCard({ initialMode = 'login', onLogin, onError, onModeChange }) {
   // modes: 'login' | 'signup' | 'verify' | 'forgot-password' | 'reset-password'
@@ -64,6 +71,35 @@ export default function LoginCard({ initialMode = 'login', onLogin, onError, onM
     if (onModeChange) onModeChange(newMode)
   }
 
+  /**
+   * Map Amplify/Cognito error names to user-friendly messages
+   */
+  function mapAuthError(err) {
+    const name = err.name || err.code || ''
+    switch (name) {
+      case 'UsernameExistsException':
+        return 'An account with this email already exists.'
+      case 'NotAuthorizedException':
+        return 'Incorrect email or password.'
+      case 'UserNotConfirmedException':
+        return 'Account not verified yet. Please enter the verification code sent to your email.'
+      case 'CodeMismatchException':
+        return 'Invalid verification code. Please check your email and try again.'
+      case 'ExpiredCodeException':
+        return 'Verification code has expired. Please request a new one.'
+      case 'InvalidPasswordException':
+        return 'Password must be at least 8 characters and include uppercase, lowercase, and numbers.'
+      case 'InvalidParameterException':
+        return err.message || 'Invalid parameters provided.'
+      case 'UserNotFoundException':
+        return 'No account found with this email address.'
+      case 'LimitExceededException':
+        return 'Attempt limit exceeded. Please wait a few moments and try again.'
+      default:
+        return err.message || 'Authentication operation failed.'
+    }
+  }
+
   // Handle Resend Code in verify or reset mode
   const handleResendCode = async () => {
     if (resendCooldown > 0 || resending) return
@@ -76,21 +112,15 @@ export default function LoginCard({ initialMode = 'login', onLogin, onError, onM
     setErrorMsg('')
     try {
       if (mode === 'verify') {
-        await api('/auth/resend-code', null, {
-          method: 'POST',
-          body: JSON.stringify({ email: values.email.trim() }),
-        })
+        await resendSignUpCode({ username: values.email.trim().toLowerCase() })
         setInfoMsg('A fresh verification code has been sent to your email.')
       } else {
-        await api('/auth/forgot-password', null, {
-          method: 'POST',
-          body: JSON.stringify({ email: values.email.trim() }),
-        })
+        await resetPassword({ username: values.email.trim().toLowerCase() })
         setInfoMsg('A fresh password reset code has been sent to your email.')
       }
       setResendCooldown(60)
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to resend code. Please try again.')
+      setErrorMsg(mapAuthError(err))
     } finally {
       setResending(false)
     }
@@ -114,27 +144,24 @@ export default function LoginCard({ initialMode = 'login', onLogin, onError, onM
 
       setLoading(true)
       try {
-        const result = await api('/auth/login', null, {
-          method: 'POST',
-          body: JSON.stringify({
-            email: values.email.trim(),
-            password: values.password,
-          }),
+        const result = await signIn({
+          username: values.email.trim().toLowerCase(),
+          password: values.password,
         })
 
-        onLogin({
-          token: result.token || result.idToken,
-          idToken: result.idToken,
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken,
-          user: result.user,
-        })
-      } catch (err) {
-        if (err.code === 'UserNotConfirmedException') {
+        if (result.isSignedIn) {
+          // Successfully signed in — notify parent (session handled by Amplify)
+          onLogin({ signedIn: true })
+        } else if (result.nextStep?.signInStep === 'CONFIRM_SIGN_UP') {
           setMode('verify')
-          setInfoMsg('Your email is not verified yet. We have switched to verification. Enter your code below.')
+          setInfoMsg('Your email is not verified yet. Enter your verification code below.')
+        }
+      } catch (err) {
+        if (err.name === 'UserNotConfirmedException') {
+          setMode('verify')
+          setInfoMsg('Your email is not verified yet. Enter your verification code below.')
         } else {
-          setErrorMsg(err.message || 'Unable to sign in. Please verify your credentials.')
+          setErrorMsg(mapAuthError(err))
           if (onError) onError(err)
         }
       } finally {
@@ -168,35 +195,38 @@ export default function LoginCard({ initialMode = 'login', onLogin, onError, onM
 
       setLoading(true)
       try {
-        const result = await api('/auth/signup', null, {
-          method: 'POST',
-          body: JSON.stringify({
-            fullName: values.fullName.trim(),
-            email: values.email.trim(),
-            password: values.password,
-          }),
+        const result = await signUp({
+          username: values.email.trim().toLowerCase(),
+          password: values.password,
+          options: {
+            userAttributes: {
+              email: values.email.trim().toLowerCase(),
+              name: values.fullName.trim(),
+            },
+          },
         })
 
-        if (result.requiresConfirmation) {
+        if (result.isSignUpComplete) {
+          // Auto-confirmed — sign in directly
+          try {
+            const signInResult = await signIn({
+              username: values.email.trim().toLowerCase(),
+              password: values.password,
+            })
+            if (signInResult.isSignedIn) {
+              onLogin({ signedIn: true })
+              return
+            }
+          } catch {}
+          setMode('login')
+          setInfoMsg('Account created! You can now sign in.')
+        } else {
           setMode('verify')
           setInfoMsg('Account created! Please check your email for the 6-digit confirmation code.')
           setResendCooldown(60)
-        } else {
-          // If auto-confirmed
-          const loginRes = await api('/auth/login', null, {
-            method: 'POST',
-            body: JSON.stringify({
-              email: values.email.trim(),
-              password: values.password,
-            }),
-          })
-          onLogin({
-            token: loginRes.token,
-            user: loginRes.user,
-          })
         }
       } catch (err) {
-        setErrorMsg(err.message || 'Unable to create account. Please try again.')
+        setErrorMsg(mapAuthError(err))
         if (onError) onError(err)
       } finally {
         setLoading(false)
@@ -213,36 +243,29 @@ export default function LoginCard({ initialMode = 'login', onLogin, onError, onM
 
       setLoading(true)
       try {
-        await api('/auth/confirm-signup', null, {
-          method: 'POST',
-          body: JSON.stringify({
-            email: values.email.trim(),
-            code: values.code.trim(),
-          }),
+        await confirmSignUp({
+          username: values.email.trim().toLowerCase(),
+          confirmationCode: values.code.trim(),
         })
 
         // If password was already entered during signup, attempt auto-login
         if (values.password) {
           try {
-            const loginRes = await api('/auth/login', null, {
-              method: 'POST',
-              body: JSON.stringify({
-                email: values.email.trim(),
-                password: values.password,
-              }),
+            const signInResult = await signIn({
+              username: values.email.trim().toLowerCase(),
+              password: values.password,
             })
-            onLogin({
-              token: loginRes.token,
-              user: loginRes.user,
-            })
-            return
+            if (signInResult.isSignedIn) {
+              onLogin({ signedIn: true })
+              return
+            }
           } catch {}
         }
 
         setMode('login')
         setInfoMsg('Email verified successfully! You can now sign in.')
       } catch (err) {
-        setErrorMsg(err.message || 'Invalid or expired verification code.')
+        setErrorMsg(mapAuthError(err))
       } finally {
         setLoading(false)
       }
@@ -258,16 +281,13 @@ export default function LoginCard({ initialMode = 'login', onLogin, onError, onM
 
       setLoading(true)
       try {
-        await api('/auth/forgot-password', null, {
-          method: 'POST',
-          body: JSON.stringify({ email: values.email.trim() }),
-        })
+        await resetPassword({ username: values.email.trim().toLowerCase() })
 
         setMode('reset-password')
         setInfoMsg('We sent a reset code to your email. Enter the code and your new password below.')
         setResendCooldown(60)
       } catch (err) {
-        setErrorMsg(err.message || 'Failed to send reset code. Please check your email.')
+        setErrorMsg(mapAuthError(err))
       } finally {
         setLoading(false)
       }
@@ -291,20 +311,17 @@ export default function LoginCard({ initialMode = 'login', onLogin, onError, onM
 
       setLoading(true)
       try {
-        await api('/auth/reset-password', null, {
-          method: 'POST',
-          body: JSON.stringify({
-            email: values.email.trim(),
-            code: values.code.trim(),
-            newPassword: values.newPassword,
-          }),
+        await confirmResetPassword({
+          username: values.email.trim().toLowerCase(),
+          confirmationCode: values.code.trim(),
+          newPassword: values.newPassword,
         })
 
         setMode('login')
         setValues((v) => ({ ...v, password: v.newPassword }))
         setInfoMsg('Password reset successfully! Please sign in with your new password.')
       } catch (err) {
-        setErrorMsg(err.message || 'Failed to reset password. Please check your code.')
+        setErrorMsg(mapAuthError(err))
       } finally {
         setLoading(false)
       }

@@ -1,16 +1,16 @@
 const { v4: uuidv4 } = require('uuid');
 const Note = require('../models/Note');
-const { success, error, parseBody, getUserId } = require('../lib/response');
+const { success, error, parseBody, getCognitoId } = require('../lib/response');
 
 // GET /api/notes
 module.exports.list = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const { category, search, favorites, trashed } = event.queryStringParameters || {};
-  const notes = await Note.listByUser(userId, { category, search, favorites, trashed });
+  const notes = await Note.listByUser(cognitoId, { category, search, favorites, trashed });
 
   return success({ success: true, notes });
 };
@@ -19,14 +19,14 @@ module.exports.list = async (event) => {
 module.exports.search = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const params = event.queryStringParameters || {};
   const queryText = params.q || params.query || params.search || '';
   const { category, trashed } = params;
 
-  const notes = await Note.search(userId, queryText, { category, trashed });
+  const notes = await Note.search(cognitoId, queryText, { category, trashed });
 
   return success({
     success: true,
@@ -40,10 +40,10 @@ module.exports.search = async (event) => {
 module.exports.stats = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
-  const stats = await Note.getStats(userId);
+  const stats = await Note.getStats(cognitoId);
   return success({ success: true, stats });
 };
 
@@ -51,11 +51,11 @@ module.exports.stats = async (event) => {
 module.exports.getById = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const noteId = event.pathParameters?.id;
-  const note = await Note.getById(userId, noteId);
+  const note = await Note.getById(cognitoId, noteId);
 
   if (!note) return error('Note not found', 404);
   return success({ success: true, note });
@@ -65,13 +65,13 @@ module.exports.getById = async (event) => {
 module.exports.create = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const { title, content, tags, category, color, attachments, isFavorite, isPinned } = parseBody(event);
 
   const note = await Note.create({
-    userId,
+    cognitoId,
     noteId: uuidv4(),
     title,
     content,
@@ -90,8 +90,8 @@ module.exports.create = async (event) => {
 module.exports.update = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const noteId = event.pathParameters?.id;
   const body = parseBody(event);
@@ -107,7 +107,7 @@ module.exports.update = async (event) => {
   if (body.isPinned !== undefined) updates.isPinned = body.isPinned;
   if (body.isTrashed !== undefined) updates.isTrashed = body.isTrashed;
 
-  const note = await Note.update(userId, noteId, updates);
+  const note = await Note.update(cognitoId, noteId, updates);
   if (!note) return error('Note not found', 404);
 
   return success({ success: true, note });
@@ -117,14 +117,14 @@ module.exports.update = async (event) => {
 module.exports.togglePin = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const noteId = event.pathParameters?.id;
-  const existing = await Note.getById(userId, noteId);
+  const existing = await Note.getById(cognitoId, noteId);
   if (!existing) return error('Note not found', 404);
 
-  const note = await Note.update(userId, noteId, { isPinned: !existing.isPinned });
+  const note = await Note.update(cognitoId, noteId, { isPinned: !existing.isPinned });
   return success({ success: true, note });
 };
 
@@ -132,14 +132,14 @@ module.exports.togglePin = async (event) => {
 module.exports.toggleFavorite = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const noteId = event.pathParameters?.id;
-  const existing = await Note.getById(userId, noteId);
+  const existing = await Note.getById(cognitoId, noteId);
   if (!existing) return error('Note not found', 404);
 
-  const note = await Note.update(userId, noteId, { isFavorite: !existing.isFavorite });
+  const note = await Note.update(cognitoId, noteId, { isFavorite: !existing.isFavorite });
   return success({ success: true, note });
 };
 
@@ -147,11 +147,11 @@ module.exports.toggleFavorite = async (event) => {
 module.exports.trash = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const noteId = event.pathParameters?.id;
-  const note = await Note.update(userId, noteId, { isTrashed: true });
+  const note = await Note.update(cognitoId, noteId, { isTrashed: true });
   if (!note) return error('Note not found', 404);
 
   return success({ success: true, note });
@@ -161,11 +161,11 @@ module.exports.trash = async (event) => {
 module.exports.restore = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const noteId = event.pathParameters?.id;
-  const note = await Note.update(userId, noteId, { isTrashed: false });
+  const note = await Note.update(cognitoId, noteId, { isTrashed: false });
   if (!note) return error('Note not found', 404);
 
   return success({ success: true, note });
@@ -175,13 +175,13 @@ module.exports.restore = async (event) => {
 module.exports.remove = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const noteId = event.pathParameters?.id;
-  const existing = await Note.getById(userId, noteId);
+  const existing = await Note.getById(cognitoId, noteId);
   if (!existing) return error('Note not found', 404);
 
-  await Note.delete(userId, noteId);
+  await Note.delete(cognitoId, noteId);
   return success({ success: true, message: 'Note permanently deleted' });
 };

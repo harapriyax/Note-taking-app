@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "aws-amplify": "^6.14.0",
     "gsap": "latest",
     "lucide-react": "latest",
     "react": "latest",

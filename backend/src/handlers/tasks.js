@@ -1,15 +1,15 @@
 const { v4: uuidv4 } = require('uuid');
 const Task = require('../models/Task');
-const { success, error, parseBody, getUserId } = require('../lib/response');
+const { success, error, parseBody, getCognitoId } = require('../lib/response');
 
 // GET /api/tasks
 module.exports.list = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
-  const tasks = await Task.listByUser(userId);
+  const tasks = await Task.listByUser(cognitoId);
   return success({ success: true, tasks });
 };
 
@@ -17,8 +17,8 @@ module.exports.list = async (event) => {
 module.exports.create = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const { text, priority, done } = parseBody(event);
 
@@ -27,7 +27,7 @@ module.exports.create = async (event) => {
   }
 
   const task = await Task.create({
-    userId,
+    cognitoId,
     taskId: uuidv4(),
     text: text.trim(),
     priority: priority || 'Medium',
@@ -41,8 +41,8 @@ module.exports.create = async (event) => {
 module.exports.update = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const taskId = event.pathParameters?.id;
   const body = parseBody(event);
@@ -52,7 +52,7 @@ module.exports.update = async (event) => {
   if (body.priority !== undefined) updates.priority = body.priority;
   if (body.done !== undefined) updates.done = Boolean(body.done);
 
-  const task = await Task.update(userId, taskId, updates);
+  const task = await Task.update(cognitoId, taskId, updates);
   if (!task) return error('Task not found', 404);
 
   return success({ success: true, task });
@@ -62,14 +62,14 @@ module.exports.update = async (event) => {
 module.exports.toggle = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const taskId = event.pathParameters?.id;
-  const existing = await Task.getById(userId, taskId);
+  const existing = await Task.getById(cognitoId, taskId);
   if (!existing) return error('Task not found', 404);
 
-  const task = await Task.update(userId, taskId, { done: !existing.done });
+  const task = await Task.update(cognitoId, taskId, { done: !existing.done });
   return success({ success: true, task });
 };
 
@@ -77,11 +77,11 @@ module.exports.toggle = async (event) => {
 module.exports.remove = async (event) => {
   if (event.httpMethod === 'OPTIONS') return success({});
 
-  const userId = getUserId(event);
-  if (!userId) return error('Unauthorized', 401);
+  const cognitoId = getCognitoId(event);
+  if (!cognitoId) return error('Unauthorized', 401);
 
   const taskId = event.pathParameters?.id;
-  await Task.remove(userId, taskId);
+  await Task.remove(cognitoId, taskId);
 
   return success({ success: true, message: 'Task deleted' });
 };
